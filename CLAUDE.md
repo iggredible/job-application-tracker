@@ -25,7 +25,7 @@ A single-user web app that tracks job applications through a hiring pipeline, an
 2. Plan first. Wait for approval before writing code.
 3. Write the tests first, then the implementation.
 4. Run `make test` and `make lint` before reporting done.
-5. Update `docs/features/current.md` and add a few lines to `docs/AI_WORKFLOW.md` about what went wrong or changed.
+5. Before reporting a feature done, without being asked, update `docs/features/current.md` and add the feature's entry to `docs/AI_WORKFLOW.md`: two or three lines on what went wrong or changed, how it was caught, and what was changed as a result. Draft it from the session and tell the user it needs their review, because the log is written in their voice.
 6. Small, focused commits with clear messages.
 
 Build only what the current spec lists. If something seems missing, ask; do not add it.
