@@ -1,16 +1,19 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { routes } from './routes'
+import { mockApi, renderAt } from './test-utils'
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }))
+
+beforeEach(() => {
+  mockApi(() => ({ body: [] }))
+})
 
 // Vitest globals are off, so Testing Library does not clean up between tests on its own.
-afterEach(cleanup)
-
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] })
-  return render(<RouterProvider router={router} />)
-}
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('app shell', () => {
   it('shows the top nav with Applications, Resume and Insights', () => {
@@ -42,11 +45,10 @@ describe('app shell', () => {
     expect(applications.getAttribute('aria-current')).toBeNull()
   })
 
-  it('renders the placeholder page for each route', () => {
+  it('renders the placeholder page for each route that is not built yet', () => {
     for (const [path, heading] of [
       ['/resume', 'Resume'],
       ['/insights', 'Insights'],
-      ['/applications/7', 'Application'],
     ] as const) {
       const { unmount } = renderAt(path)
       expect(screen.getByRole('heading', { name: heading })).toBeTruthy()
