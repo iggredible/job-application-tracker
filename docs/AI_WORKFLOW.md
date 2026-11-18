@@ -1,0 +1,38 @@
+# AI Workflow
+
+How this app was built from a written specification using Claude Code.
+
+## Approach
+
+<!-- Spec first, then plan, then build, one feature per session. Which documents drove the work. -->
+
+## How I verified the work
+
+<!-- What was read line by line, what was trusted to tests, what was checked by hand. -->
+
+## Feature log
+
+<!-- Two or three lines per feature, written as each one is finished:
+     what the agent got wrong, how it was caught, what was changed as a result. -->
+
+**Doc review before feature 1.** I had Claude read the overview, architecture and all specs and report what was unclear or inconsistent before any code existed. It found real contradictions: the seed script bypassed the `change_stage()` rule, the eval was told to use the AI wrapper while not writing to the database, and spec 7 used a different "which analysis" rule than spec 6. It also found gaps that would have skewed the data: the base resume is editable but "what I sent" pointed at it, the tailored schema dropped education and contact details, and the guardrail missed the summary and matched substrings. I answered twelve questions (all with the recommended defaults) and the fixes went into the docs in a handful of small commits (see `git log`), so the specs now agree with each other before the first line of code.
+
+## Prompt iteration
+
+<!-- Eval results for prompt v1 and v2, and what changed between them. -->
+
+## Design decisions
+
+<!-- Deterministic vs non-deterministic split, guards, append-only logs, and why. -->
+
+## What I would do next
+
+<!-- Honest gaps and what more time would add. -->
+
+Known limits accepted at the doc review (revisit after the MVP):
+
+- Editing the posting text does not invalidate an existing analysis.
+- No delete and no undo of a terminal stage.
+- The tailored vs base response rate is confounded, since tailoring may go to better-fit jobs.
+- Full-text retrieval drops punctuation (`c++` becomes `c`) and does not stem synonyms.
+- Keyword coverage matches exact terms only, so `k8s` and `kubernetes` count as different keywords.
