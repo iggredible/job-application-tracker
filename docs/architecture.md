@@ -145,7 +145,7 @@ sequenceDiagram
 | `/insights` | Metrics |
 
 - Server state is fetched and cached with TanStack Query. There is no client-side store.
-- The frontend holds no business rules. Allowed next stages, guard failures and step status all come from the API. So do the options in the Change stage control (Applied is not one of them), which analysis and which tailored resume the page displays, and which resumes can be submitted, each with a reason when it cannot.
+- The frontend holds NO business rules. Allowed next stages, guard failures and step status all come from the API. So do the options in the Change stage control (Applied is not one of them), which analysis and which tailored resume the page displays, and which resumes can be submitted, each with a reason when it cannot.
 - Creating and editing an application share one dialog. Everything else on the detail page is a section that changes state in place; nothing navigates between steps.
 - Components are shadcn/ui with Tailwind.
 - `docs/screenshots/` shows the finished pages. `docs/reference/v0-prototype/` holds generated reference code that is never imported.

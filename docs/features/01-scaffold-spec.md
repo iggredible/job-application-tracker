@@ -1,11 +1,12 @@
-# Project Scaffold
+# Project Initial Scaffolding
 
 ## Overview
 
-Set up the repo skeleton so the backend, frontend and database run locally with one command and CI is green. No domain features yet.
+Set up the repo skeleton so the backend, frontend, and database run locally with one command and CI is green. No domain features yet.
 
 ## Requirements
 
+- Look at `docs/project-overview.md` and `docs/architecture.md` for the big picture
 - Monorepo layout from the project overview: `backend/`, `frontend/`, `docs/`
 - Backend: Python 3.12, FastAPI, managed with uv
 - `GET /health` returns `{"status": "ok"}` and confirms the database connection

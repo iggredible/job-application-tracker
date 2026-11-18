@@ -19,7 +19,7 @@ A single-user web app that tracks job applications through a hiring pipeline, an
 - `make seed`: load sample data (from feature 13)
 - `make eval`: run the prompt eval against the real model (from feature 16)
 
-## Workflow for every feature
+## Feature Implementation Workflow
 
 1. Read the feature spec and the files it references.
 2. Plan first. Wait for approval before writing code.
@@ -35,12 +35,13 @@ Build only what the current spec lists. If something seems missing, ask; do not 
 - Request flow: `api/ -> services/ -> repositories/ -> models/`. Dependencies point inward only.
 - `api/` handles HTTP only. No database access and no business rules.
 - `services/` hold all business rules. No FastAPI imports and no SQL.
-- `repositories/` hold all queries. No decisions.
+- `repositories/` hold all queries. No decisions. &lt;!— This is the repository patern from Domain-Driven Design. It’s like Rails’ query objects + AR persistence —&gt;
+- `models/` defines tables and columns.
 - The frontend holds no business rules. It renders what the API returns.
 
 ## Rules that must never be broken
 
-- `applications.stage` changes only through `ApplicationService.change_stage()`. Two documented exceptions: creating an application (the column default is `saved`, and the service writes the initial event) and the seed script (feature 13, which backdates history).
+- `applications.stage` changes only through `ApplicationService.change_stage()`. Two documented exceptions: creating an application (the column default is `saved`, and the service writes the initial event) and the seed script (feature 13, which backdates history). &lt;!— state transition rules —&gt;
 - `timeline_events` and `ai_calls` are append-only. Never update or delete rows. Database triggers block UPDATE and DELETE on both tables, and block changes to `resumes.draft_markdown`.
 - Transitions and guards are defined as data, not as if-statements.
 - Metrics, keyword coverage, AI outcome, edit ratio and step status are calculated on request. Never store them.
