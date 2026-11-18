@@ -478,8 +478,8 @@ These need no extra approval. Ask before adding anything else.
 | --- | --- |
 | Backend runtime | fastapi, uvicorn, sqlalchemy (sync), alembic, psycopg 3, pydantic, pydantic-settings, anthropic |
 | Backend dev | pytest, httpx (FastAPI test client), ruff, honcho |
-| Frontend runtime | react, react-dom, react-router, @tanstack/react-query, tailwindcss, shadcn/ui and its dependencies (Radix UI, class-variance-authority, clsx, tailwind-merge, lucide-react, sonner for toasts), recharts via the shadcn chart component |
-| Frontend dev | vite, typescript, vitest, jsdom, @testing-library/react, eslint with its TypeScript and React plugins |
+| Frontend runtime | react, react-dom, react-router, @tanstack/react-query, tailwindcss, shadcn/ui and its dependencies (Radix UI, class-variance-authority, clsx, tailwind-merge or `cn` (shadcn's drop-in replacement for both), lucide-react, sonner for toasts), the `shadcn` CLI package, @fontsource-variable/geist (shadcn's default font), @tailwindcss/vite (Tailwind's Vite plugin), recharts via the shadcn chart component |
+| Frontend dev | vite, @vitejs/plugin-react, typescript, vitest, jsdom, @testing-library/react and its peer @testing-library/dom, eslint with @eslint/js and its TypeScript and React plugins, @types/* for the packages above |
 
 ### Backend Layering
 
@@ -697,6 +697,7 @@ Wait for approval of each plan before writing code.
 
 1. Plan first, and wait for approval before writing code.
 2. Tests added or updated; all tests and lint pass.
+   For frontend features, also verify the feature in a real browser with the Playwright MCP: walk the user flow, compare with the named screenshot and check the console for errors.
 3. New endpoints appear correctly in `/docs` (OpenAPI).
 4. `docs/features/current.md` updated with status and decisions.
 5. A few lines added to `docs/AI_WORKFLOW.md`: what went wrong, what changed.

@@ -17,6 +17,8 @@ How this app was built from a written specification using Claude Code.
 
 **Doc review before feature 1.** I had Claude read the overview, architecture and all specs and report what was unclear or inconsistent before any code existed. It found real contradictions: the seed script bypassed the `change_stage()` rule, the eval was told to use the AI wrapper while not writing to the database, and spec 7 used a different "which analysis" rule than spec 6. It also found gaps that would have skewed the data: the base resume is editable but "what I sent" pointed at it, the tailored schema dropped education and contact details, and the guardrail missed the summary and matched substrings. I answered twelve questions (all with the recommended defaults) and the fixes went into the docs in a handful of small commits (see `git log`), so the specs now agree with each other before the first line of code.
 
+**Feature 01, project scaffold.** The setup tools pulled in packages I had not approved. `shadcn init` defaulted to Base UI instead of Radix, and it and the Tailwind and eslint setups also added `cn`, a Geist font package, `@tailwindcss/vite` and `@eslint/js`, none of them in the approved list. Claude switched the init to Radix and wrote the rest into the decisions, but only the review step showed that nobody had actually approved them; I approved them after the review and added them to the approved list and the spec. Two versions also had to be pinned because the newest ones did not work together: TypeScript to `~6.0` (typescript-eslint stops below 6.1) and ESLint to 9.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->
