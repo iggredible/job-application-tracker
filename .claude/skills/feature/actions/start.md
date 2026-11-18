@@ -15,4 +15,4 @@
 
 Do not commit. Do not start anything the spec does not list.
 
-If something does not work after two or three attempts, stop and explain the problem. Do not keep trying variations.
+If something does not work after three attempts, stop and explain the problem. Do not keep trying variations.
