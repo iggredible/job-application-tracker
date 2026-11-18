@@ -25,6 +25,7 @@ A single-user web app that tracks job applications through a hiring pipeline, an
 2. Plan first. Wait for approval before writing code.
 3. Write the tests first, then the implementation.
 4. Run `make test` and `make lint` before reporting done.
+4a. For any feature that changes the frontend, also verify it in a real browser with the Playwright MCP against `make dev` and the seed or sample data: walk the feature's user flow, check the result against the named screenshot in `docs/screenshots/`, and check the browser console for errors. Report what was checked and attach screenshots. If the Playwright MCP is not available, say so and stop; do not report the feature done on tests alone.
 5. Before reporting a feature done, without being asked, update `docs/features/current.md` and add the feature's entry to `docs/AI_WORKFLOW.md`: two or three lines on what went wrong or changed, how it was caught, and what was changed as a result. Draft it from the session and tell the user it needs their review, because the log is written in their voice.
 6. Small, focused commits with clear messages.
 
@@ -73,5 +74,6 @@ Build only what the current spec lists. If something seems missing, ask; do not 
 ## Definition of done
 
 1. Tests added or updated; `make test` and `make lint` pass.
+1a. Frontend features: verified in the browser with the Playwright MCP (user flow, screenshot comparison, no console errors).
 2. New endpoints appear correctly in `/docs`.
 3. `docs/features/current.md` and `docs/AI_WORKFLOW.md` are updated.

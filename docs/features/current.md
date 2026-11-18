@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned
+In progress
 
 ## Goals
 
@@ -45,7 +45,6 @@ Made while planning (approved):
 - **CI:** one `ci.yml`, two jobs (backend with a `postgres:16` service, frontend), actions pinned to major versions.
 - **Frontend smoke test:** one file, covering the three nav links and a route change to `/resume`.
 - **The API key never goes in a tracked file.** It lives only in the gitignored `.env`; `.env.example` has a blank placeholder.
-- **Pre-existing uncommitted edits** to `CLAUDE.md` and `docs/project-overview.md` are left alone and kept out of this feature's commits.
 
 ## Notes
 

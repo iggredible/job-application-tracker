@@ -39,6 +39,7 @@ Set up the repo skeleton so the backend, frontend and database run locally with 
 - Do not create any domain tables in this feature.
 - The packages in the project overview's Approved Packages table are allowed. Ask before adding anything else.
 - Later features add `seed` and `eval` targets to the Makefile.
+- Approved while building, beyond the overview's original list (now added to it): `cn` (replaces clsx and tailwind-merge), `shadcn`, `@fontsource-variable/geist`, `@tailwindcss/vite`, `@eslint/js`, `@testing-library/dom`, `@types/*`, `@vitejs/plugin-react`.
 
 ## Verification
 
@@ -59,7 +60,7 @@ Set up the repo skeleton so the backend, frontend and database run locally with 
    - The console shows no errors or warnings and there are no failed network requests, on every page.
    - Attach a screenshot of each page. If the Playwright MCP is not available, stop and say so.
 5. **Rules and hygiene.**
-   - `git status` shows no `.env`, and a grep for `sk-ant` across tracked files is empty.
+   - `git status` shows no `.env`, and a grep for the key prefix (`sk-ant`) across the working tree, excluding this spec, is empty.
    - The migration contains no `create_table`.
    - `app/services/` has no `fastapi` imports and `app/api/` has no SQL.
 6. **CI.** Validate the workflow YAML and run its commands locally. Ask before pushing a branch to run it on GitHub.
