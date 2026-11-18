@@ -10,7 +10,7 @@ Fill an empty database with realistic sample data so the list, the timeline and 
 - A `seed` target in the Makefile
 - Refuse to run on a non-empty database unless `--reset` is passed
 - Use a fixed random seed so every run produces the same data
-- One fictional base resume
+- One fictional base resume (`application_id` null, status `approved`). Base-resume snapshots for applications submitted with the base resume are separate rows and are not counted here
 - About 40 applications with fictional companies, spread across all sources
 - Timeline events backdated over roughly 10 weeks, following only valid transitions
 - A spread of current stages, including some stale applications with no activity in 14+ days

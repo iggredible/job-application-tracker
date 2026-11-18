@@ -424,7 +424,7 @@ CREATE INDEX posting_analyses_application_idx ON posting_analyses (application_i
 
 `python -m scripts.seed` uses a fixed random seed and creates:
 
-- 1 base resume
+- 1 base resume (`application_id` null, status `approved`). Base-resume snapshots for applications submitted with the base resume are separate rows and are not counted here
 - about 40 applications across all sources and stages
 - timeline events spread over roughly 10 weeks
 - posting analyses, tailored resumes and `ai_calls` rows for about half of them
