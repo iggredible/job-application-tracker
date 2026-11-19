@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -43,7 +43,18 @@ Not started
 
 ## Decisions
 
-<!-- Choices made while planning or building, with the reason. -->
+- Missing choice is a 409, not a 422. `choice` is optional in the request schema so `{}` reaches the guard (`require_choice`) and returns 409; an unknown value such as `"foo"` is a 422. The spec lists "missing choice" as a failed guard.
+- Applied date is read from the Saved → Applied timeline event, not stored. Metrics and derived values are calculated on request.
+- Step status text comes from the API, using the screenshot wording, so the frontend holds no step logic.
+- Nothing is preselected in the Mark as applied radios (the step-1 screenshot shows none). The user must pick, so the resume question cannot be skipped.
+- Snapshot effect is a table entry (`_EFFECTS[(SAVED, APPLIED)]`) run inside `change_stage()` after the guards and before the commit, not an `if` on a transition. The snapshot, `submitted_resume_id`, stage change and timeline event share one transaction.
+- Generic stage endpoint rejects Saved → Applied through the `require_choice` guard (data), and `DEDICATED_ACTIONS` data removes Applied from `allowed_next_stages` and supplies `stage_change_hint`. `api/` holds no rule.
+- `change_stage()` reads the application with a row lock, so a double click cannot create two snapshots.
+- A superseded but approved tailored resume stays submittable: the spec only requires "approved".
+- Base choice: `submitted_resume_id` points to a new snapshot row (`application_id` set, `ai_call_id` null, approved, copy of the base `content_markdown`, `draft_markdown` null). The base resume row and the tailored resumes are untouched. Tailored choice: it points straight at the approved tailored row.
+- Submittable options are ordered tailored (newest first), then base, as in the screenshot.
+- No new dependency: the shadcn radio-group uses the installed `radix-ui` package.
+- Browser verification uses sample rows inserted into the dev database by a throwaway script (seed is feature 13), with no real AI calls.
 
 ## Notes
 
