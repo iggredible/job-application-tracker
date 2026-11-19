@@ -66,6 +66,10 @@ function apiWith(analysis: Record<string, unknown> | null, answer: ApiHandler) {
     if (custom.status !== 404) return custom
     if (req.path === '/api/applications/1/analysis') return { body: analysis }
     if (req.path.endsWith('/timeline')) return { body: [sampleEvent()] }
+    // These tests are not about coverage: no base resume, and nothing to measure.
+    if (req.path === '/api/resume' || req.path.endsWith('/coverage')) {
+      return { status: 404, body: { detail: 'not found' } }
+    }
     return { body: sampleApplication() }
   })
 }

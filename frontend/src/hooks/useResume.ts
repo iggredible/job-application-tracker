@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { coverageKey } from '@/hooks/useCoverage'
 import { api, ApiError } from '@/lib/api'
 import type { Resume } from '@/lib/resume'
 
@@ -25,6 +26,10 @@ export function useSaveResume() {
   return useMutation({
     mutationFn: (contentMarkdown: string) =>
       api<Resume>('/resume', { method: 'PUT', body: { content_markdown: contentMarkdown } }),
-    onSuccess: (resume) => queryClient.setQueryData(resumeKey, resume),
+    onSuccess: (resume) => {
+      queryClient.setQueryData(resumeKey, resume)
+      // The base resume's text is what coverage is measured against.
+      return queryClient.invalidateQueries({ queryKey: coverageKey })
+    },
   })
 }

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { coverageKey } from '@/hooks/useCoverage'
 import { api, ApiError } from '@/lib/api'
 import type { PostingAnalysis } from '@/lib/analysis'
 
@@ -25,7 +26,11 @@ export function useRunAnalysis(applicationId: number) {
         method: 'POST',
         body: undefined,
       }),
-    onSuccess: (analysis) => queryClient.setQueryData(analysisKey(applicationId), analysis),
+    onSuccess: (analysis) => {
+      queryClient.setQueryData(analysisKey(applicationId), analysis)
+      // A new draft can change which keywords coverage measures.
+      return queryClient.invalidateQueries({ queryKey: coverageKey })
+    },
   })
 }
 
@@ -33,6 +38,11 @@ export function useRunAnalysis(applicationId: number) {
  * rejection the API may want an older approved analysis shown instead. */
 export function useReviewAnalysis(applicationId: number) {
   const queryClient = useQueryClient()
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: analysisKey(applicationId) }),
+      queryClient.invalidateQueries({ queryKey: coverageKey }),
+    ])
   return useMutation({
     mutationFn: ({ analysisId, decision }: { analysisId: number; decision: 'approve' | 'reject' }) =>
       api<PostingAnalysis>(`/analyses/${analysisId}/${decision}`, {
@@ -40,8 +50,9 @@ export function useReviewAnalysis(applicationId: number) {
         body: undefined,
       }),
     // Returned, so the buttons stay disabled until the card shows what the API now says.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: analysisKey(applicationId) }),
+    // Approving or rejecting changes which analysis coverage uses, so it reloads too.
+    onSuccess: () => refresh(),
     // A refused decision usually means the page was out of date, so reload what it shows.
-    onError: () => queryClient.invalidateQueries({ queryKey: analysisKey(applicationId) }),
+    onError: () => refresh(),
   })
 }

@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { CoverageBlock } from '@/components/CoverageBlock'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -149,6 +150,7 @@ export function PostingAnalysisCard({ applicationId }: { applicationId: number }
           {analysis && (
             <>
               <AnalysisBody analysis={analysis} />
+              <CoverageBlock applicationId={analysis.application_id} />
               {analysis.status === 'draft' && (
                 <p className="border-t pt-4 text-sm text-muted-foreground">
                   Check that the requirements and keywords match the posting. Tailoring uses the

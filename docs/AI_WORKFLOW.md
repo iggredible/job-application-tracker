@@ -29,6 +29,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 06, posting analysis.** My first frontend tests clicked Analyze before the analysis had loaded and failed three times; the card was fine, so the tests now wait for the button. In the browser, the screenshot meant to show the loading state caught the finished draft, because the real call took only a few seconds; a script that clicks and reads the buttons in one step showed all three disabled. The independent review found that approve and reject did not lock the row, so two tabs could decide the same draft. That got a failing test (a second session holds the row and the other decision must wait) and a `SELECT … FOR UPDATE`, and I checked the test by removing the lock and watching it fail.
 
+**Feature 07, keyword coverage.** My plan said `c++` would not match `c+++`. The first test run showed the word-boundary rule does match it, because `+` is not a word character, so I dropped that case and wrote the rule into the decisions instead of tightening it. Adding the coverage block made the card call two new endpoints, and that broke two older tests whose mock answered every unknown URL with an application; the mock now answers 404 like the real API. In the browser on real data I recounted 13 of 25 with a separate script and it matched. I also saw that the card shows the newest draft's keywords while coverage follows the latest approved analysis, as the spec says.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->
