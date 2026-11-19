@@ -11,6 +11,7 @@ dependencies = [
     "psycopg[binary]>=3",
     "pydantic>=2",
     "pydantic-settings",
+    "anthropic>=2.10.0",
 ]
 
 [dependency-groups]
@@ -19,6 +20,7 @@ dev = [
     "httpx",
     "ruff",
     "honcho",
+    "httpx2>=2.16.2",
 ]
 
 [tool.pytest.ini_options]

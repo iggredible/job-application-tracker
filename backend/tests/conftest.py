@@ -8,7 +8,9 @@ AI call log in its own transaction, so rollback would not isolate tests.
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import NoReturn
 
+import httpx2
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -16,10 +18,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.ai.sinks import DatabaseLogSink
+from app.api.ai import get_ai_client
 from app.api.applications import get_clock
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.main import app
+from tests.fakes import NetworkBlocked
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -69,6 +74,24 @@ def _truncate_tables(test_engine: Engine) -> Iterator[None]:
             conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
 
 
+@pytest.fixture(autouse=True)
+def _block_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test makes a network call. The Anthropic SDK sends requests through httpx2's
+    HTTPTransport (or AsyncHTTPTransport for AsyncAnthropic); FastAPI's TestClient has its own
+    in-process transport, so it is unaffected."""
+
+    def blocked(self: httpx2.HTTPTransport, request: httpx2.Request) -> httpx2.Response:
+        raise NetworkBlocked(f"a test tried to send {request.method} {request.url}")
+
+    async def blocked_async(
+        self: httpx2.AsyncHTTPTransport, request: httpx2.Request
+    ) -> httpx2.Response:
+        raise NetworkBlocked(f"a test tried to send {request.method} {request.url}")
+
+    monkeypatch.setattr(httpx2.HTTPTransport, "handle_request", blocked)
+    monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", blocked_async)
+
+
 @pytest.fixture
 def db_session(test_engine: Engine) -> Iterator[Session]:
     factory = sessionmaker(bind=test_engine)
@@ -77,9 +100,25 @@ def db_session(test_engine: Engine) -> Iterator[Session]:
 
 
 @pytest.fixture
+def db_sink(test_engine: Engine) -> DatabaseLogSink:
+    """The app's log sink, bound to the test database. It commits in its own session."""
+    return DatabaseLogSink(sessionmaker(bind=test_engine))
+
+
+def _real_ai_client_is_not_allowed() -> NoReturn:
+    raise RuntimeError(
+        "this test reached the real AI client: override get_ai_client with a FakeAIClient"
+    )
+
+
+@pytest.fixture
 def client(db_session: Session, clock: FakeClock) -> Iterator[TestClient]:
     app.dependency_overrides[get_session] = lambda: db_session
     app.dependency_overrides[get_clock] = lambda: clock
+    # A route test that needs the AI client must override this with a FakeAIClient. Without
+    # this default it would get the real provider, whose log sink writes to the dev database's
+    # append-only ai_calls, where a stray row cannot be deleted.
+    app.dependency_overrides[get_ai_client] = _real_ai_client_is_not_allowed
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

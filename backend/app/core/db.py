@@ -16,10 +16,14 @@ def get_engine() -> Engine:
     return _engine
 
 
-def get_session() -> Iterator[Session]:
-    """FastAPI dependency: one session per request."""
+def get_session_factory() -> sessionmaker[Session]:
     global _session_factory
     if _session_factory is None:
         _session_factory = sessionmaker(bind=get_engine())
-    with _session_factory() as session:
+    return _session_factory
+
+
+def get_session() -> Iterator[Session]:
+    """FastAPI dependency: one session per request."""
+    with get_session_factory()() as session:
         yield session

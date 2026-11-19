@@ -182,3 +182,78 @@ def test_the_resume_schema_cannot_carry_a_status() -> None:
     from app.schemas.resume import ResumeWrite
 
     assert set(ResumeWrite.model_fields) == {"content_markdown"}
+
+
+# --- AI layer (feature 5) -----------------------------------------------------------------------
+
+
+def test_the_ai_layer_follows_the_layering_rules() -> None:
+    ai_files = sorted((APP_DIR / "ai").rglob("*.py"))
+    assert ai_files, "app/ai/ is missing"
+
+    for path in ai_files:
+        imports = _imports(path)
+        # ai/ is not HTTP, and it touches SQLAlchemy only in the database sink.
+        assert not {m for m in imports if m.startswith(("fastapi", "app.api"))}, path
+        uses_sqlalchemy = any(m == "sqlalchemy" or m.startswith("sqlalchemy.") for m in imports)
+        assert path.name == "sinks.py" or not uses_sqlalchemy, path
+
+
+def test_only_the_ai_package_imports_the_anthropic_sdk() -> None:
+    offenders = [
+        path.relative_to(APP_DIR).as_posix()
+        for path in sorted(APP_DIR.rglob("*.py"))
+        if any(m == "anthropic" or m.startswith("anthropic.") for m in _imports(path))
+        and path.relative_to(APP_DIR).parts[0] != "ai"
+    ]
+
+    assert offenders == []
+
+
+def test_services_and_api_do_not_depend_on_the_concrete_ai_client() -> None:
+    for layer in ("services", "api"):
+        for path in sorted((APP_DIR / layer).rglob("*.py")):
+            concrete = {m for m in _imports(path) if m in {"app.ai.client", "app.ai.sinks"}}
+            allowed = path.relative_to(APP_DIR).as_posix() == "api/ai.py"  # the provider wires it
+            assert allowed or not concrete, path
+
+
+def test_the_ai_call_repository_has_no_update_or_delete() -> None:
+    from app.repositories.ai_calls import AICallRepository
+
+    methods = {name for name, _ in inspect.getmembers(AICallRepository, inspect.isfunction)}
+
+    assert not {m for m in methods if m.startswith(("update", "delete", "remove", "set"))}
+    assert {"add", "get"} <= methods
+
+
+def test_no_code_sets_a_temperature() -> None:
+    offenders = []
+    for path, tree in _sources():
+        relative = path.relative_to(APP_DIR)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == "temperature":
+                offenders.append(f"{relative}:{node.value.lineno} keyword")
+            if isinstance(node, ast.Dict) and any(
+                isinstance(k, ast.Constant) and k.value == "temperature" for k in node.keys
+            ):
+                offenders.append(f"{relative}:{node.lineno} dict key")
+
+    assert offenders == []
+
+
+MODEL_ID = re.compile(r"claude-(sonnet|opus|haiku|fable)|sk-ant")
+
+
+def test_no_model_name_or_key_is_hard_coded_outside_the_price_table() -> None:
+    offenders = []
+    for path, tree in _sources():
+        relative = path.relative_to(APP_DIR).as_posix()
+        if relative == "core/config.py":  # the price table is keyed by model
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if MODEL_ID.search(node.value):
+                    offenders.append(f"{relative}:{node.lineno}")
+
+    assert offenders == []
