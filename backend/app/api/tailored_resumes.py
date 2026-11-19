@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,14 +8,14 @@ from app.api.ai import get_ai_client
 from app.api.applications import get_clock
 from app.core.clock import Clock
 from app.core.db import get_session
-from app.models import Resume
 from app.repositories.applications import ApplicationRepository
 from app.repositories.locks import GenerationLockRepository
 from app.repositories.posting_analyses import PostingAnalysisRepository
 from app.repositories.resumes import ResumeRepository
-from app.schemas.tailored_resume import TailoredResumeRead
+from app.schemas.tailored_resume import GuardrailFlag, TailoredResumeRead
 from app.services.applications import ApplicationNotFound
 from app.services.tailoring import (
+    TailoredDraft,
     TailoredResumeService,
     TailoringBlocked,
     TailoringInProgress,
@@ -34,13 +36,15 @@ def get_service(
     )
 
 
-def _read(resume: Resume) -> TailoredResumeRead:
+def _read(draft: TailoredDraft) -> TailoredResumeRead:
+    resume = draft.resume
     return TailoredResumeRead(
         id=resume.id,
         application_id=resume.application_id,  # type: ignore[arg-type]  # set on tailored ones
         status=resume.status,
         prompt_version=resume.ai_call.prompt_version,  # type: ignore[union-attr]
         content_markdown=resume.content_markdown,
+        guardrail_flags=[GuardrailFlag(**asdict(flag)) for flag in draft.flags],
         created_at=resume.created_at,
     )
 
@@ -96,6 +100,6 @@ def list_tailored_resumes(
 ) -> list[TailoredResumeRead]:
     """The application's tailored resumes, newest first."""
     try:
-        return [_read(resume) for resume in service.list_for_application(application_id)]
+        return [_read(draft) for draft in service.list_for_application(application_id)]
     except ApplicationNotFound:
         raise _application_not_found() from None

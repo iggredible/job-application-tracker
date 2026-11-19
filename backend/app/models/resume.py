@@ -37,6 +37,10 @@ class Resume(Base):
     # As generated. A database trigger rejects any change to it.
     draft_markdown: Mapped[str | None] = mapped_column(Text)
     content_markdown: Mapped[str] = mapped_column(Text)
+    # The guardrail flags as generated (a list of {field, value, message}). Never changed.
+    guardrail_flags: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, server_default=text("'[]'::jsonb")
+    )
     status: Mapped[ReviewStatus] = mapped_column(
         enum_type(ReviewStatus, "review_status"),
         server_default=ReviewStatus.DRAFT.value,

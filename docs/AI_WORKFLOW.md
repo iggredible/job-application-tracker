@@ -33,6 +33,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 08, tailored resume draft.** The first draft's summary claimed "8 years of backend experience", a number worked out from the dates that the base resume never states, and the mocked tests could not see it; I left the prompt alone, because feature 9's number flag should catch it and the eval in feature 16 should check it before any prompt v2. The "dashed" box rendered solid, because the shadcn Card draws its outline with a ring, so `border-dashed` did nothing; it now swaps the ring for a real dashed border, checked by eye.
 
+**Feature 09, guardrail check.** The independent review found a bug the green tests missed: the number regex backtracked when a figure ended in letters other than k, m or x, so a made-up `$1.5B` was read as `$1` and passed against a base resume that said `$1.2B`. Claude reproduced it with three failing tests first, then made a number token take every letter, digit and `,` `.` `%` glued to it; that widens the spec's "trailing k, m or x" and is written into the decisions. In the browser the sample draft showed four flags where the screenshot shows two, because the spec also flags keywords the draft uses and the base lacks, and the spec wins. Two smaller review findings are left open: `.5` and `US$5M` are never read as numbers, and numeric months such as `01/2021` are not compared. A structural fact the user adds while editing is not re-checked, which is what the spec asks for.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->

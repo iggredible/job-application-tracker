@@ -41,6 +41,7 @@ function sampleDraft(overrides: Record<string, unknown> = {}) {
     prompt_version: 'v1',
     content_markdown: '# Jordan Avery\n\n## Summary\nBackend lead on Ruby on Rails.',
     created_at: '2026-11-16T12:00:00Z',
+    guardrail_flags: [],
     ...overrides,
   }
 }
@@ -189,6 +190,70 @@ describe('draft state', () => {
     expect((section.getByRole('button', { name: 'Tailor again' }) as HTMLButtonElement).disabled).toBe(
       true,
     )
+  })
+})
+
+const KUBERNETES = { field: 'skill', value: 'Kubernetes', message: 'Skill "Kubernetes"' }
+const FORTY = {
+  field: 'number',
+  value: '40%',
+  message: 'Number "40%" in "Cut report run time by 40%…"',
+}
+
+describe('guardrail flags', () => {
+  it('shows a warning box with the count, each flag and the closing line', async () => {
+    tailoringApi(approved(), [sampleDraft({ guardrail_flags: [FORTY, KUBERNETES] })])
+    renderAt('/applications/1')
+
+    const box = within(await (await openSection()).findByRole('alert'))
+    expect(box.getByText('2 things in this draft are not in your base resume')).toBeTruthy()
+    expect(box.getByText('Number "40%" in "Cut report run time by 40%…"')).toBeTruthy()
+    expect(box.getByText('Skill "Kubernetes"')).toBeTruthy()
+    expect(
+      box.getByText(
+        'Edit or remove them, or keep them if they are true. Flags do not block approval.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('says "1 thing" and "is" for a single flag', async () => {
+    tailoringApi(approved(), [sampleDraft({ guardrail_flags: [KUBERNETES] })])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByText('1 thing in this draft is not in your base resume')).toBeTruthy()
+  })
+
+  it('shows no box when there are no flags', async () => {
+    tailoringApi(approved(), [sampleDraft()])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    await section.findByText('Draft')
+    expect(section.queryByRole('alert')).toBeNull()
+    expect(section.queryByText(/not in your base resume/)).toBeNull()
+  })
+
+  it('puts the box above the draft', async () => {
+    tailoringApi(approved(), [sampleDraft({ guardrail_flags: [KUBERNETES] })])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    const box = await section.findByRole('alert')
+    const draft = section.getByText(/Backend lead on Ruby on Rails/)
+    expect(box.compareDocumentPosition(draft) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows the flags of the newest draft, and no box when the newer draft has none', async () => {
+    tailoringApi(approved(), [sampleDraft({ guardrail_flags: [KUBERNETES] })])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByRole('alert')).toBeTruthy()
+    fireEvent.click(section.getByRole('button', { name: 'Tailor again' }))
+
+    expect(await (await openSection()).findByText(/A newer draft/)).toBeTruthy()
+    expect((await openSection()).queryByRole('alert')).toBeNull()
   })
 })
 
