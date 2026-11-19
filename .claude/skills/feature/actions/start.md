@@ -15,4 +15,24 @@
 
 Do not commit. Do not start anything the spec does not list.
 
+## Installing packages
+
+The approved list is "Approved Packages" in `docs/project-overview.md`. Anything on it can be installed without asking. Anything else needs the user's approval first.
+
+This covers every install path: `pip install`, `uv add`, `npm install`, `pnpm add`, `npx shadcn add` when it pulls in new packages, and edits to `pyproject.toml`, `requirements*.txt` or `package.json`. It includes packages you add on purpose as a peer dependency or as `@types/*` for an unlisted package.
+
+Before installing an unapproved package:
+
+1. Stop. Do not install it, not even temporarily or to try it out.
+2. Ask the user for approval and give:
+   - The package name and, if relevant, the version
+   - Whether it is a runtime or dev dependency
+   - Why it is needed, tied to the specific goal or test in the plan that requires it
+   - Why the approved packages or the standard library cannot do the job
+   - The alternative if the user declines
+3. Wait for an explicit yes. A yes for one package does not cover another.
+4. After approval, install it and record it under `## Decisions` in `docs/features/current.md` with the justification.
+
+If the user declines, use the alternative or stop and report. Do not work around the refusal by copying the package's code into the repo.
+
 If something does not work after three attempts, stop and explain the problem. Do not keep trying variations.
