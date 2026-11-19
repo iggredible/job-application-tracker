@@ -13,3 +13,4 @@
 6. Once approved:
    - Set `## Status` to Planned
    - Record each decision made during planning under `## Decisions`, with its reason
+   - Commit the `current.md` change on the current branch (for example `docs: plan feature NN`), so the Planned record travels with the feature
