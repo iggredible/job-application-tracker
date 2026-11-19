@@ -66,15 +66,15 @@ def test_post_rejects_stage_in_body(client: TestClient) -> None:
     assert client.post("/applications", json={**VALID, "stage": "offer"}).status_code == 422
 
 
-def test_get_list_returns_plain_list_newest_first(client: TestClient) -> None:
-    assert client.get("/applications").json() == []
+def test_get_list_returns_items_newest_first(client: TestClient) -> None:
+    assert client.get("/applications").json()["items"] == []
     first = create(client, company="First")
     second = create(client, company="Second")
 
     response = client.get("/applications")
 
     assert response.status_code == 200
-    assert [a["id"] for a in response.json()] == [second["id"], first["id"]]
+    assert [a["id"] for a in response.json()["items"]] == [second["id"], first["id"]]
 
 
 def test_get_one_returns_application_and_404_when_missing(client: TestClient) -> None:

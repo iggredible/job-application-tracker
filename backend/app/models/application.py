@@ -1,10 +1,10 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Enum, Text, func, text
+from sqlalchemy import BigInteger, DateTime, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import Base, enum_type
 
 
 class Stage(enum.Enum):
@@ -26,15 +26,6 @@ class Source(enum.Enum):
     OTHER = "other"
 
 
-def _enum_type(enum_class: type[enum.Enum], name: str) -> Enum:
-    # Store the lowercase values, not the member names, to match the documented schema.
-    return Enum(
-        enum_class,
-        name=name,
-        values_callable=lambda members: [m.value for m in members],
-    )
-
-
 class Application(Base):
     __tablename__ = "applications"
 
@@ -43,10 +34,10 @@ class Application(Base):
     role: Mapped[str] = mapped_column(Text)
     posting_url: Mapped[str | None] = mapped_column(Text)
     posting_text: Mapped[str] = mapped_column(Text)
-    source: Mapped[Source] = mapped_column(_enum_type(Source, "source"))
+    source: Mapped[Source] = mapped_column(enum_type(Source, "source"))
     # Written only by ApplicationService.change_stage() (feature 3). The insert omits it, so
     # the server default applies.
-    stage: Mapped[Stage] = mapped_column(_enum_type(Stage, "stage"), server_default=text("'saved'"))
+    stage: Mapped[Stage] = mapped_column(enum_type(Stage, "stage"), server_default=text("'saved'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

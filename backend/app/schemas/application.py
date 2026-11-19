@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
-from app.models import Source, Stage
+from app.models import EventType, Source, Stage
 
 # Whitespace is trimmed and a blank value is rejected.
 RequiredText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -61,7 +61,9 @@ class ApplicationUpdate(BaseModel):
         return self
 
 
-class ApplicationRead(BaseModel):
+class ApplicationFields(BaseModel):
+    """The columns of an application, as stored."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -73,3 +75,44 @@ class ApplicationRead(BaseModel):
     posting_text: str
     created_at: datetime
     updated_at: datetime
+
+
+class ApplicationRead(ApplicationFields):
+    """The stored columns plus the values calculated on request."""
+
+    allowed_next_stages: list[Stage]
+    last_activity_at: datetime
+    is_stale: bool
+    idle_days: int
+
+
+class ApplicationList(BaseModel):
+    """`counts_by_stage` and `stale_count` cover all applications, not only the filtered items."""
+
+    items: list[ApplicationRead]
+    counts_by_stage: dict[Stage, int]
+    stale_count: int
+
+
+class StageChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    to_stage: Stage
+
+
+class NoteCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: RequiredText
+
+
+class TimelineEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    application_id: int
+    type: EventType
+    from_stage: Stage | None
+    to_stage: Stage | None
+    note: str | None
+    created_at: datetime

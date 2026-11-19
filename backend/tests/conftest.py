@@ -6,6 +6,7 @@ AI call log in its own transaction, so rollback would not isolate tests.
 """
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.applications import get_clock
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.main import app
@@ -22,15 +24,37 @@ from app.main import app
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
+class FakeClock:
+    """A clock the test controls. Calling it returns "now"; advance() moves it forward."""
+
+    def __init__(self) -> None:
+        self.now = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, **delta: float) -> None:
+        self.now += timedelta(**delta)
+
+
+@pytest.fixture
+def clock() -> FakeClock:
+    return FakeClock()
+
+
 @pytest.fixture(scope="session")
-def test_engine() -> Iterator[Engine]:
-    url = get_settings().test_database_url
+def alembic_config() -> Config:
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
-    config.set_main_option("sqlalchemy.url", url)
-    command.upgrade(config, "head")
+    config.set_main_option("sqlalchemy.url", get_settings().test_database_url)
+    return config
 
-    engine = create_engine(url)
+
+@pytest.fixture(scope="session")
+def test_engine(alembic_config: Config) -> Iterator[Engine]:
+    command.upgrade(alembic_config, "head")
+
+    engine = create_engine(get_settings().test_database_url)
     yield engine
     engine.dispose()
 
@@ -53,8 +77,9 @@ def db_session(test_engine: Engine) -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(db_session: Session) -> Iterator[TestClient]:
+def client(db_session: Session, clock: FakeClock) -> Iterator[TestClient]:
     app.dependency_overrides[get_session] = lambda: db_session
+    app.dependency_overrides[get_clock] = lambda: clock
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

@@ -21,6 +21,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 02, applications CRUD.** The green tests missed two bugs that I only found by using the app in a browser: a long pasted posting made the dialog's textarea grow past the screen so the Save button could not be reached, and a backend validation error showed in the toast as "body: Value error, posting_url must be…". jsdom cannot test layout, so Claude capped the textarea at `50vh` (checked by hand only), and `api.ts` now strips the Pydantic prefix, with a unit test. The generated `sonner` component imported `next-themes`, which I had not approved, so Claude removed the import and fixed the theme to light instead of adding the package.
 
+**Feature 03, stages and timeline.** The pill-click test showed that the pills and the table blanked out on every click while the new stage loaded; I kept the previous data on screen (`keepPreviousData`) so they stay put. The screenshot's stale notice says "14 or more days", but the API does not send the threshold, so using it would copy a business rule into the frontend; the notice says "no recent activity" instead and the difference is documented.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->

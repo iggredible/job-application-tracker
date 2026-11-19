@@ -2,12 +2,13 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.repositories.applications import ApplicationRepository
+from app.repositories.timeline import TimelineRepository
 from app.schemas.application import ApplicationCreate, ApplicationUpdate
 from app.services.applications import ApplicationNotFound, ApplicationService
 
 
 def make_service(session: Session) -> ApplicationService:
-    return ApplicationService(ApplicationRepository(session))
+    return ApplicationService(ApplicationRepository(session), TimelineRepository(session))
 
 
 def new_payload(**overrides) -> ApplicationCreate:
@@ -22,7 +23,7 @@ def new_payload(**overrides) -> ApplicationCreate:
 
 
 def test_new_application_starts_in_saved_stage(db_session: Session) -> None:
-    application = make_service(db_session).create(new_payload())
+    application = make_service(db_session).create(new_payload()).application
 
     assert application.id is not None
     assert application.stage.value == "saved"
@@ -31,7 +32,7 @@ def test_new_application_starts_in_saved_stage(db_session: Session) -> None:
 
 def test_update_changes_only_the_five_editable_fields(db_session: Session) -> None:
     service = make_service(db_session)
-    created = service.create(new_payload())
+    created = service.create(new_payload()).application
 
     updated = service.update(
         created.id,
@@ -42,7 +43,7 @@ def test_update_changes_only_the_five_editable_fields(db_session: Session) -> No
             posting_url="https://larkspur.example/jobs/9",
             posting_text="New text.",
         ),
-    )
+    ).application
 
     assert (updated.company, updated.role) == ("Larkspur Health", "Staff Engineer")
     assert updated.source.value == "referral"
@@ -64,7 +65,7 @@ def test_get_missing_id_raises_not_found(db_session: Session) -> None:
 
 def test_list_is_newest_first(db_session: Session) -> None:
     service = make_service(db_session)
-    first = service.create(new_payload(company="First"))
-    second = service.create(new_payload(company="Second"))
+    first = service.create(new_payload(company="First")).application
+    second = service.create(new_payload(company="Second")).application
 
-    assert [a.id for a in service.list()] == [second.id, first.id]
+    assert [v.application.id for v in service.list().items] == [second.id, first.id]
