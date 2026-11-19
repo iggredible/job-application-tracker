@@ -1,5 +1,5 @@
 ---
-name: feature-agent
+name: feature-reviewer-agent
 description: Independent, read-only reviewer for the feature in progress. Checks the diff against the spec and CLAUDE.md rules and reports findings ranked by severity. Invoked by `/feature review`.
 tools: Read, Grep, Glob, Bash
 model: opus
