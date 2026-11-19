@@ -41,7 +41,10 @@ function sampleDraft(overrides: Record<string, unknown> = {}) {
     prompt_version: 'v1',
     content_markdown: '# Jordan Avery\n\n## Summary\nBackend lead on Ruby on Rails.',
     created_at: '2026-11-16T12:00:00Z',
+    reviewed_at: null,
     guardrail_flags: [],
+    outcome: 'pending',
+    displayed: true,
     ...overrides,
   }
 }
@@ -67,6 +70,7 @@ function tailoringApi(
         content_markdown: '## Summary\nA newer draft.',
         created_at: '2026-11-18T12:00:00Z',
       })
+      list.forEach((older, index) => (list[index] = { ...older, displayed: false }))
       list.unshift(draft)
       return { status: 201, body: draft }
     }
@@ -145,30 +149,25 @@ describe('draft state', () => {
     expect(await section.findByText('Draft')).toBeTruthy()
     expect(section.getByText('Prompt v1 · Generated Nov 16')).toBeTruthy()
     expect(section.getByRole('button', { name: 'Tailor again' })).toBeTruthy()
-    expect(section.getByText(/Backend lead on Ruby on Rails/)).toBeTruthy()
+    expect(section.getByDisplayValue(/Backend lead on Ruby on Rails/)).toBeTruthy()
     expect(section.queryByText(LOCKED_TEXT)).toBeNull()
   })
 
-  it('shows the draft read-only, with nothing to edit, approve or reject', async () => {
-    tailoringApi(approved(), [sampleDraft()])
-    renderAt('/applications/1')
-
-    const section = await openSection()
-    await section.findByText('Draft')
-    expect(section.queryByRole('textbox')).toBeNull()
-    expect(section.queryByRole('button', { name: /approve|reject|save/i })).toBeNull()
-  })
-
-  it('shows the newest draft', async () => {
+  it('shows the draft the API marks as displayed', async () => {
     tailoringApi(approved(), [
       sampleDraft({ id: 8, content_markdown: 'The newest draft.' }),
-      sampleDraft({ id: 7, content_markdown: 'An older draft.' }),
+      sampleDraft({
+        id: 7,
+        content_markdown: 'An older draft.',
+        displayed: false,
+        outcome: 'superseded',
+      }),
     ])
     renderAt('/applications/1')
 
     const section = await openSection()
-    expect(await section.findByText('The newest draft.')).toBeTruthy()
-    expect(section.queryByText('An older draft.')).toBeNull()
+    expect(await section.findByDisplayValue('The newest draft.')).toBeTruthy()
+    expect(section.queryByDisplayValue('An older draft.')).toBeNull()
   })
 
   it('Tailor again posts a new request and shows the new draft', async () => {
@@ -177,7 +176,7 @@ describe('draft state', () => {
 
     fireEvent.click(await (await openSection()).findByRole('button', { name: 'Tailor again' }))
 
-    expect(await (await openSection()).findByText(/A newer draft/)).toBeTruthy()
+    expect(await (await openSection()).findByDisplayValue(/A newer draft/)).toBeTruthy()
     expect(postsTo(calls)).toEqual(['/api/applications/1/tailored-resumes'])
   })
 
@@ -240,7 +239,7 @@ describe('guardrail flags', () => {
 
     const section = await openSection()
     const box = await section.findByRole('alert')
-    const draft = section.getByText(/Backend lead on Ruby on Rails/)
+    const draft = section.getByDisplayValue(/Backend lead on Ruby on Rails/)
     expect(box.compareDocumentPosition(draft) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
@@ -252,7 +251,7 @@ describe('guardrail flags', () => {
     expect(await section.findByRole('alert')).toBeTruthy()
     fireEvent.click(section.getByRole('button', { name: 'Tailor again' }))
 
-    expect(await (await openSection()).findByText(/A newer draft/)).toBeTruthy()
+    expect(await (await openSection()).findByDisplayValue(/A newer draft/)).toBeTruthy()
     expect((await openSection()).queryByRole('alert')).toBeNull()
   })
 })

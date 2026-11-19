@@ -14,8 +14,8 @@ from app.repositories.posting_analyses import PostingAnalysisRepository
 from app.repositories.resumes import ResumeRepository
 from app.schemas.tailored_resume import GuardrailFlag, TailoredResumeRead
 from app.services.applications import ApplicationNotFound
+from app.services.resume_review import TailoredDraft
 from app.services.tailoring import (
-    TailoredDraft,
     TailoredResumeService,
     TailoringBlocked,
     TailoringInProgress,
@@ -36,7 +36,7 @@ def get_service(
     )
 
 
-def _read(draft: TailoredDraft) -> TailoredResumeRead:
+def read_draft(draft: TailoredDraft) -> TailoredResumeRead:
     resume = draft.resume
     return TailoredResumeRead(
         id=resume.id,
@@ -46,6 +46,9 @@ def _read(draft: TailoredDraft) -> TailoredResumeRead:
         content_markdown=resume.content_markdown,
         guardrail_flags=[GuardrailFlag(**asdict(flag)) for flag in draft.flags],
         created_at=resume.created_at,
+        reviewed_at=resume.reviewed_at,
+        outcome=draft.outcome,
+        displayed=draft.displayed,
     )
 
 
@@ -76,7 +79,7 @@ def run_tailoring(
 ) -> TailoredResumeRead:
     """Make one AI call and save the tailored resume as a draft."""
     try:
-        return _read(service.run(application_id, ai))
+        return read_draft(service.run(application_id, ai))
     except ApplicationNotFound:
         raise _application_not_found() from None
     except TailoringBlocked as blocked:
@@ -98,8 +101,9 @@ def run_tailoring(
 def list_tailored_resumes(
     application_id: int, service: TailoredResumeService = Depends(get_service)
 ) -> list[TailoredResumeRead]:
-    """The application's tailored resumes, newest first."""
+    """The application's tailored resumes, newest first. One has `displayed` set: the one the
+    Tailored resume section shows."""
     try:
-        return [_read(draft) for draft in service.list_for_application(application_id)]
+        return [read_draft(draft) for draft in service.list_for_application(application_id)]
     except ApplicationNotFound:
         raise _application_not_found() from None

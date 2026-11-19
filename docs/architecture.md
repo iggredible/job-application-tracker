@@ -50,7 +50,8 @@ Request flow: `api/ -> services/ -> repositories/ -> models/`.
 | Write a tailored resume | Non-deterministic (LLM) | `services/tailoring.py` via `ai/` |
 | Render structured output to Markdown | Deterministic | `services/rendering.py` |
 | Guardrail check | Deterministic | `services/guardrail.py` |
-| Approve or reject | Human | `services/review.py` records the decision |
+| Approve or reject | Human | `services/review.py` records the decision; `services/resume_review.py` applies it to a tailored resume |
+| Edit a draft, outcome, edit ratio, which resume is displayed | Deterministic | `services/resume_review.py` |
 | Workflow step status | Deterministic | `services/workflow.py` |
 | Stale rule | Deterministic | `services/staleness.py` |
 | Metrics | Deterministic | `services/metrics.py` |
@@ -67,6 +68,18 @@ Plain code, no AI, calculated on every request and never stored. `services/cover
 - `CoverageService.for_application(application_id, resume_id=None)`: picks the analysis (the latest approved, else the latest draft, never a rejected one) and the resume (the base resume, or `resume_id`, which must be the base resume or one of this application's). With a `resume_id` it also returns the base resume's coverage, `newly_covered` (covered now, not in the base) and `still_missing` (missing from both).
 
 `GET /applications/{id}/coverage` (`api/coverage.py`) answers 404 for an unknown application, no usable analysis, no base resume, or a `resume_id` that is not allowed. `base`, `newly_covered` and `still_missing` are left out of the response when no `resume_id` is given. The Posting analysis card shows the result (`CoverageBlock`); when there is no base resume it links to the Resume page instead. The card shows the newest analysis while coverage follows the rule above, so after Analyze again on an approved analysis they can describe different analyses.
+
+## Reviewing a tailored resume
+
+`services/resume_review.py` holds the review of a tailored resume. Nothing here creates a row: a new resume comes only from a tailoring call, and editing, approving and rejecting change the row in place.
+
+- `TailoredReviewService.save_edits()` replaces `content_markdown` (and `updated_at`) of a draft, exactly as given. `draft_markdown` and `guardrail_flags` are never written. `approve()` and `reject()` go through `review.apply_decision()`, the only code that sets a status. Each call locks the row (`ResumeRepository.get_tailored_for_update()`), which returns only tailored resumes, so the base resume and its snapshots answer 404. A resume that is no longer a draft answers 409.
+- `PATCH /resumes/{id}` takes `ResumeWrite` (the text only, never blank, no other field) and returns the resume with its current flags and the coverage of the new text (`TailoredResumeEditRead`). `POST /resumes/{id}/approve` and `/reject` return the resume. Approving with unsaved edits is two calls from the frontend: PATCH, then approve.
+- `present()` turns the application's tailored resumes (newest first) into `TailoredDraft`s: the current flags, the `outcome` and `displayed`. `GET /applications/{id}/tailored-resumes` and every response above use it, so they agree.
+  - `derive_outcome()`: pending, superseded, approved, edited then approved or rejected. A draft is superseded when any newer tailored resume exists for the application. A decided resume is never superseded.
+  - `displayed_resume()`: the newest resume if it is a draft awaiting review, else the latest approved, else the latest rejected. The frontend renders the one marked `displayed`.
+  - `edit_ratio()`: `1 − SequenceMatcher(None, draft, content, autojunk=False).ratio()`. Built and tested, but not exposed until the metrics (feature 14).
+- Outcome, edit ratio and `displayed` are calculated on request and never stored.
 
 ## Trust chain for AI output
 

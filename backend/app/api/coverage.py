@@ -30,7 +30,7 @@ def _coverage(coverage: Coverage) -> CoverageRead:
     return CoverageRead(covered=coverage.covered, missing=coverage.missing, ratio=coverage.ratio)
 
 
-def _read(result: ApplicationCoverage) -> ApplicationCoverageRead:
+def read_coverage(result: ApplicationCoverage) -> ApplicationCoverageRead:
     return ApplicationCoverageRead(
         **_coverage(result.coverage).model_dump(),
         base=_coverage(result.base) if result.base else None,
@@ -64,7 +64,7 @@ def get_coverage(
     `newly_covered` and `still_missing`.
     """
     try:
-        return _read(service.for_application(application_id, resume_id))
+        return read_coverage(service.for_application(application_id, resume_id))
     except ApplicationNotFound:
         raise HTTPException(status_code=404, detail="application not found") from None
     except NoAnalysis:

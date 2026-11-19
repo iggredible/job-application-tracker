@@ -20,6 +20,23 @@ class ResumeRepository:
     def get(self, resume_id: int) -> Resume | None:
         return self._session.get(Resume, resume_id)
 
+    def get_tailored_for_update(self, resume_id: int) -> Resume | None:
+        """A tailored resume (made by an AI call for an application), locked until this
+        transaction ends so an edit and a decision cannot both act on a stale status. The row
+        is reloaded, so a change that committed while this one waited is seen. The base resume
+        and base-resume snapshots are not tailored, so they are never returned."""
+        query = (
+            select(Resume)
+            .where(
+                Resume.id == resume_id,
+                Resume.application_id.is_not(None),
+                Resume.ai_call_id.is_not(None),
+            )
+            .with_for_update(of=Resume)
+            .execution_options(populate_existing=True)
+        )
+        return self._session.scalar(query)
+
     def add(self, resume: Resume) -> Resume:
         """Raises BaseResumeExists when a second base resume would be created."""
         self._session.add(resume)

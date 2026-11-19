@@ -325,3 +325,42 @@ def test_the_analysis_repository_has_no_delete() -> None:
 
     assert not {m for m in methods if m.startswith(("delete", "remove"))}
     assert {"add", "get", "list_for_application"} <= methods
+
+
+# --- Tailored resume review (feature 10) --------------------------------------------------------
+
+
+def test_the_resume_review_slice_follows_the_layering_rules() -> None:
+    api = _imports(APP_DIR / "api" / "resumes.py")
+    service = _imports(APP_DIR / "services" / "resume_review.py")
+    repository = _imports(APP_DIR / "repositories" / "resumes.py")
+
+    # api/ holds no queries and no tables.
+    assert not {m for m in api if m.startswith("app.models") or m == "sqlalchemy"}
+    # services/ import no FastAPI and write no SQL.
+    assert not {m for m in service if m.startswith(("fastapi", "sqlalchemy"))}
+    # repositories/ make no HTTP or business decisions.
+    assert not {m for m in repository if m.startswith(("fastapi", "app.services", "app.api"))}
+
+
+def test_no_code_assigns_the_generated_text_after_creation() -> None:
+    # A resume is created with draft_markdown=...; nothing assigns the attribute afterwards.
+    # (The database trigger is the second line of defence.)
+    offenders = []
+    for path, tree in _sources():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign | ast.AugAssign | ast.AnnAssign):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                for target in targets:
+                    if isinstance(target, ast.Attribute) and target.attr == "draft_markdown":
+                        offenders.append(f"{path.relative_to(APP_DIR)}:{node.lineno}")
+
+    assert offenders == []
+
+
+def test_the_outcome_and_the_edit_ratio_are_never_stored() -> None:
+    from app.models import Resume
+
+    columns = set(Resume.__table__.columns.keys())
+
+    assert not columns & {"outcome", "edit_ratio", "edited", "displayed", "superseded"}
