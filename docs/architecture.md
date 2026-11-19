@@ -59,6 +59,15 @@ Only two steps call the LLM. Each is followed by deterministic checks and a huma
 
 Each LLM step is split in two. A pure function in `services/generation.py` (`analyze()` and `tailor()`) calls the `AIClient` and returns validated output, and it touches no database. The service around it (`services/analysis.py`, `services/tailoring.py`) gathers the inputs, calls the pure function and saves the result. The eval calls the pure functions directly with an in-memory log sink.
 
+## Keyword coverage
+
+Plain code, no AI, calculated on every request and never stored. `services/coverage.py` has two parts:
+
+- `keyword_coverage(keywords, resume_text)`: a pure function returning `Coverage(covered, missing, ratio)`. It casefolds both texts and collapses every whitespace run to one space (those are the only normalizations: no hyphen, slash or Markdown handling, no stemming). Each distinct keyword is then escaped and matched as `(?<!\w)keyword(?!\w)`, so `java` is not found in `javascript` and terms like `c++` and `.net` work, which `\b` cannot do. Blank keywords are dropped, repeats count once, and the ratio is 0.0 when there are no keywords. The review flow and the eval call it directly.
+- `CoverageService.for_application(application_id, resume_id=None)`: picks the analysis (the latest approved, else the latest draft, never a rejected one) and the resume (the base resume, or `resume_id`, which must be the base resume or one of this application's). With a `resume_id` it also returns the base resume's coverage, `newly_covered` (covered now, not in the base) and `still_missing` (missing from both).
+
+`GET /applications/{id}/coverage` (`api/coverage.py`) answers 404 for an unknown application, no usable analysis, no base resume, or a `resume_id` that is not allowed. `base`, `newly_covered` and `still_missing` are left out of the response when no `resume_id` is given. The Posting analysis card shows the result (`CoverageBlock`); when there is no base resume it links to the Resume page instead. The card shows the newest analysis while coverage follows the rule above, so after Analyze again on an approved analysis they can describe different analyses.
+
 ## Trust chain for AI output
 
 An LLM result passes through three layers before it is used:

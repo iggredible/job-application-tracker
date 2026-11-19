@@ -17,6 +17,9 @@ class ResumeRepository:
         """The base resume is the one row that belongs to no application."""
         return self._session.scalar(select(Resume).where(Resume.application_id.is_(None)))
 
+    def get(self, resume_id: int) -> Resume | None:
+        return self._session.get(Resume, resume_id)
+
     def add(self, resume: Resume) -> Resume:
         """Raises BaseResumeExists when a second base resume would be created."""
         self._session.add(resume)
