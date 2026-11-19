@@ -177,7 +177,7 @@ def test_post_sends_the_base_resume_the_posting_and_the_approved_keywords(
     assert f"<base_resume>\n{BASE}\n</base_resume>" in user
     assert APPLICATION["posting_text"] in user
     assert "- ruby on rails\n- postgresql" in user
-    assert "<examples>\n</examples>" in user  # no retrieval yet: tailoring works with none
+    assert "<examples>\n</examples>" in user  # nothing in the history yet: no examples
 
 
 def test_post_again_adds_a_draft_and_leaves_the_older_one_unchanged(
@@ -513,3 +513,173 @@ def test_get_follows_an_edit_while_the_stored_flags_stay_as_generated(
 
     assert [flag["field"] for flag in draft["guardrail_flags"]] == ["employer", "title", "dates"]
     assert [flag["field"] for flag in stored_flags(test_engine)] == DIRTY_FIELDS
+
+
+# --- past examples (feature 12) -----------------------------------------------------------------
+
+PAST = TailoredResume(
+    summary="Past summary about Rails APIs.",
+    experiences=[
+        Experience(
+            employer="Old Employer",
+            title="Engineer",
+            dates="2018 — 2021",
+            bullets=["Past bullet about PostgreSQL"],
+        )
+    ],
+    skills=["Ruby on Rails"],
+)
+PAST_MARKDOWN = render_tailored_markdown(BASE, PAST)
+
+
+def make_past(
+    client: TestClient,
+    sink: DatabaseLogSink,
+    *,
+    posting_text: str = "Ruby on Rails services backed by PostgreSQL.",
+    keywords: list[str] | None = None,
+    decision: str | None = "approve",
+) -> tuple[int, int]:
+    """Another application with an approved analysis and a tailored resume, approved by default.
+    Returns the application id and the resume id. The base resume must exist."""
+    other = client.post(
+        "/applications", json={**APPLICATION, "company": "Past Co", "posting_text": posting_text}
+    ).json()["id"]
+    make_analysis(
+        client,
+        sink,
+        other,
+        keywords=keywords or ["ruby on rails", "postgresql"],
+        decision="approve",
+    )
+    use_ai(FakeAIClient(sink, output=PAST))
+    resume_id = tailor(client, other)["id"]
+    if decision:
+        assert client.post(f"/resumes/{resume_id}/{decision}").status_code == 200
+    return other, resume_id
+
+
+def logged_example_ids(engine: Engine, application_id: int) -> list[list[int]]:
+    """`retrieved_example_ids` of each tailoring call of one application, oldest first."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT retrieved_example_ids FROM ai_calls "
+                "WHERE feature = 'tailor_resume' AND application_id = :id ORDER BY id"
+            ),
+            {"id": application_id},
+        )
+        return [row.retrieved_example_ids for row in rows]
+
+
+def test_post_puts_a_past_approved_resume_in_the_examples_section(
+    client: TestClient, ready: FakeAIClient, db_sink: DatabaseLogSink, application_id: int
+) -> None:
+    make_past(client, db_sink)
+    use_ai(ready)
+
+    tailor(client, application_id)
+
+    user = ready.calls[0]["prompt"].user
+    examples = user[user.index("<examples>") : user.index("</examples>")]
+    assert "style and emphasis only" in examples
+    assert "Example 1 (posting keywords: ruby on rails, postgresql)" in examples
+    assert PAST_MARKDOWN in examples
+    assert ready.calls[0]["prompt"].version == "v1"
+
+
+def test_post_logs_the_example_resume_ids_on_the_call(
+    client: TestClient,
+    ready: FakeAIClient,
+    db_sink: DatabaseLogSink,
+    application_id: int,
+    test_engine: Engine,
+) -> None:
+    _, first = make_past(client, db_sink)
+    _, second = make_past(client, db_sink)
+    use_ai(ready)
+
+    tailor(client, application_id)
+
+    (logged,) = logged_example_ids(test_engine, application_id)
+    assert sorted(logged) == sorted([first, second])
+
+
+def test_post_runs_with_no_examples_when_no_past_posting_matches(
+    client: TestClient,
+    ready: FakeAIClient,
+    db_sink: DatabaseLogSink,
+    application_id: int,
+    test_engine: Engine,
+) -> None:
+    make_past(client, db_sink, posting_text="Embedded firmware in C for sensors.")
+    use_ai(ready)
+
+    body = tailor(client, application_id)
+
+    assert "<examples>\n</examples>" in ready.calls[0]["prompt"].user
+    assert logged_example_ids(test_engine, application_id) == [[]]
+    assert body["example_count"] == 0
+
+
+def test_post_does_not_use_a_draft_or_a_rejected_resume_as_an_example(
+    client: TestClient,
+    ready: FakeAIClient,
+    db_sink: DatabaseLogSink,
+    application_id: int,
+) -> None:
+    make_past(client, db_sink, decision=None)  # still a draft
+    make_past(client, db_sink, decision="reject")
+    use_ai(ready)
+
+    tailor(client, application_id)
+
+    assert "<examples>\n</examples>" in ready.calls[0]["prompt"].user
+
+
+def test_post_does_not_use_the_applications_own_approved_resume_as_an_example(
+    client: TestClient, ready: FakeAIClient, application_id: int
+) -> None:
+    first = tailor(client, application_id)
+    assert client.post(f"/resumes/{first['id']}/approve").status_code == 200
+
+    second = tailor(client, application_id)
+
+    assert "<examples>\n</examples>" in ready.calls[1]["prompt"].user
+    assert second["example_count"] == 0
+
+
+def test_post_does_not_use_a_base_resume_snapshot_as_an_example(
+    client: TestClient,
+    ready: FakeAIClient,
+    db_sink: DatabaseLogSink,
+    application_id: int,
+) -> None:
+    sent = client.post(
+        "/applications", json={**APPLICATION, "posting_text": "Ruby on Rails and PostgreSQL."}
+    ).json()["id"]
+    assert client.post(f"/applications/{sent}/apply", json={"choice": "base"}).status_code == 200
+    use_ai(ready)
+
+    tailor(client, application_id)
+
+    assert "<examples>\n</examples>" in ready.calls[0]["prompt"].user
+
+
+def test_the_response_and_the_list_say_how_many_examples_each_draft_used(
+    client: TestClient, ready: FakeAIClient, db_sink: DatabaseLogSink, application_id: int
+) -> None:
+    without = tailor(client, application_id)
+    make_past(client, db_sink)
+    make_past(client, db_sink)
+    use_ai(ready)
+
+    with_examples = tailor(client, application_id)
+
+    assert (without["example_count"], with_examples["example_count"]) == (0, 2)
+    listed = client.get(f"/applications/{application_id}/tailored-resumes").json()
+    # Newest first, and an older draft keeps its own count.
+    assert [(row["id"], row["example_count"]) for row in listed] == [
+        (with_examples["id"], 2),
+        (without["id"], 0),
+    ]

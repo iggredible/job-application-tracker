@@ -1,56 +1,22 @@
-# Current Feature: 12 Example Retrieval
+# Current Feature
 
 ## Status
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Planned
+Not started
 
 ## Goals
 
 <!-- What the spec requires, as bullets. -->
 
-- Migration adding `applications.posting_tsv` as a generated column with a GIN index
-- An `ExampleRetriever` interface and a `FullTextRetriever` implementation, so vector search can replace it later
-- Build the search query from the approved analysis keywords, combined with OR. Quote multi-word keywords so they stay phrases
-- Rank matches with `ts_rank` and take the top 3
-- Only consider applications that have an approved tailored resume; use the most recently approved one. A base-resume snapshot is not a tailored resume
-- Exclude the application being tailored
-- Add the examples to the prompt's examples section, each labeled with that posting's keywords, with a line stating they show style and emphasis only and are not a source of facts. This fills a section that `tailor_resume` v1 already has, so the prompt version does not change
-- Record the example resume ids in `ai_calls.retrieved_example_ids`
-- When nothing matches, tailoring runs with no examples
-- In the Tailored resume section header, show "N past examples used" for the displayed resume
-- Tests against a real PostgreSQL test database: ranking order, the exclusion rules and the empty case
-
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
 
-- Full-text search stays the implementation for this feature. Embedding and hybrid search are recorded in the overview (AI Design: Retrieval) as later improvements, not built. Reason: one user, few approved resumes, no extra service or key, and the search stays deterministic and testable.
-- Split across layers: `FullTextRetriever` and the `ExampleRetriever` Protocol are in `services/retrieval.py` (they decide: OR query, quoting, limit 3, exclusion). The SQL is in a new `repositories/examples.py` (`ExampleRepository.search()`). Reason: services hold no SQL and repositories hold no decisions; a separate repository keeps the feature easy to drop.
-- Every keyword is quoted, not only multi-word ones, and embedded `"` is stripped. Reason: same meaning for plain words, and a keyword like `-foo` or a bare `or` cannot be read as operator syntax.
-- Search uses `websearch_to_tsquery('english', ...)` against `posting_tsv`, ranked by `ts_rank`. Ties break by `reviewed_at` descending, then resume id, so the order is total and the result is deterministic.
-- One candidate per application: its newest approved tailored resume (`ai_call_id` set, status `approved`, latest `reviewed_at`, then id). Reason: "most recently approved one"; `reviewed_at` is the only approval timestamp.
-- Example text is the approved `content_markdown` (with the user's edits), not `draft_markdown`. Reason: it is what the user vouched for.
-- Each example is labeled with its application's latest approved analysis keywords.
-- `format_examples()` puts a notice line first in the examples block (style and emphasis only, not a source of facts). `ai/prompts/tailor_resume.py` is unchanged and `VERSION` stays `v1`.
-- No minimum rank and no length normalization. Reason: the spec has none; a weak match can fill a slot when fewer than 3 strong ones exist. Revisit with the eval (feature 16).
-- `example_count` on `TailoredResumeRead` is derived on request from the call's `retrieved_example_ids` and never stored. The header shows "N past examples used" on both the draft and the approved line, "1 past example used" for one, and nothing for zero.
-- A retrieval error fails the tailoring request (rolled back, no AI call made). No silent fallback.
-- New migration `0010` adds only `applications.posting_tsv` (generated, stored) and its GIN index. No new dependency.
-
 ## Notes
 
 <!-- Constraints, references and anything the next session needs. -->
-
-- Spec: `docs/features/12-retrieval-spec.md`
-- References: `docs/project-overview.md` (AI Design: Retrieval; Features E; schema for `applications` and `resumes`), `docs/architecture.md` (AI call path, Retrieval, "Snapshots are not tailored resumes"), `docs/features/08-tailored-draft-spec.md`, `docs/screenshots/detail-step-2.png` ("Prompt v1 · 2 past examples used · Generated Nov 16"), PostgreSQL full-text search: https://www.postgresql.org/docs/16/textsearch.html
-- Do not use `plainto_tsquery` on the keyword list. It requires every term to match and returns nothing.
-- Prefer `websearch_to_tsquery` with `or` between terms. It accepts raw input such as `c++` or `ci/cd` without syntax errors. The English configuration drops punctuation (`c++` becomes `c`), which is accepted for the MVP.
-- This feature is the first to drop if the schedule slips. Keep it isolated behind the interface. Nothing after it depends on it.
-- Already in place: `ai_calls.retrieved_example_ids` (JSONB, default `[]`), the `retrieved_example_ids` argument on `AIClient.generate()`, and `examples` on `ai/prompts/tailor_resume.render()` (empty block `<examples>\n</examples>` today). `applications.posting_tsv` does not exist yet.
-- Retrieval lives in `services/retrieval.py`. It is deterministic and does not call the LLM. Select tailored resumes with the repository's tailored predicate (`application_id` set and `ai_call_id` set), never snapshots.
-- Rejected and unreviewed drafts are never used as examples (overview, Features E).
 
 ## History
 
@@ -66,3 +32,4 @@ Planned
 - 09 Guardrail Check (2026-11-19): a pure `check()` flags employers, titles, dates, numbers, skills and keywords that the base resume lacks and stores them as generated in `resumes.guardrail_flags`, and a pure `current_flags()` recalculates what the user sees, shown as a warning box above the draft.
 - 10 Tailored Resume Review (2026-11-19): the user edits a draft beside the base resume, then approves or rejects it behind `PATCH /resumes/{id}` and `POST /resumes/{id}/approve` and `/reject`, with outcome, edit ratio and the displayed resume calculated on request, never stored.
 - 11 Mark as Applied and Submitted Resume (2026-11-19): `POST /applications/{id}/apply` is the only way from Saved to Applied, saving a snapshot of the base resume (or pointing at an approved tailored resume) in `submitted_resume_id`, and the API returns the three workflow steps, shown as a strip and a Mark as applied section.
+- 12 Example Retrieval (2026-11-19): before tailoring, a full-text search over `applications.posting_tsv` finds up to 3 past approved tailored resumes, which fill the prompt's examples section and are logged in `ai_calls.retrieved_example_ids`, and the section header shows "N past examples used".

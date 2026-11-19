@@ -45,6 +45,7 @@ function sampleDraft(overrides: Record<string, unknown> = {}) {
     guardrail_flags: [],
     outcome: 'pending',
     displayed: true,
+    example_count: 0,
     ...overrides,
   }
 }
@@ -313,5 +314,44 @@ describe('failures', () => {
     expect((section.getByRole('button', { name: 'Tailor resume' }) as HTMLButtonElement).disabled).toBe(
       false,
     )
+  })
+})
+
+describe('past examples used', () => {
+  it('says how many past examples the displayed draft used, before the date', async () => {
+    tailoringApi(approved(), [sampleDraft({ example_count: 2 })])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByText('Prompt v1 · 2 past examples used · Generated Nov 16')).toBeTruthy()
+  })
+
+  it('uses the singular for one example', async () => {
+    tailoringApi(approved(), [sampleDraft({ example_count: 1 })])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByText('Prompt v1 · 1 past example used · Generated Nov 16')).toBeTruthy()
+  })
+
+  it('says nothing about examples when the draft used none', async () => {
+    tailoringApi(approved(), [sampleDraft({ example_count: 0 })])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByText('Prompt v1 · Generated Nov 16')).toBeTruthy()
+    expect(section.queryByText(/past example/)).toBeNull()
+  })
+
+  it('shows the count of the displayed draft, not of an older one', async () => {
+    tailoringApi(approved(), [
+      sampleDraft({ id: 8, example_count: 3, created_at: '2026-11-17T12:00:00Z' }),
+      sampleDraft({ id: 7, example_count: 1, displayed: false, outcome: 'superseded' }),
+    ])
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByText(/3 past examples used/)).toBeTruthy()
+    expect(section.queryByText(/1 past example used/)).toBeNull()
   })
 })

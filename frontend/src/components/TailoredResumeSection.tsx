@@ -164,14 +164,25 @@ export function TailoredResumeSection({ applicationId }: { applicationId: number
   )
 }
 
-/** The line under the header: when the resume was approved, or when it was generated. The API
- * says whether an approved resume was edited. */
+/** The line under the header: when the resume was approved, or when it was generated, and how
+ * many past examples the model saw (nothing when it saw none). The API says whether an approved
+ * resume was edited, and counts the examples. */
 function describe(resume: TailoredResume): string {
+  const count = resume.example_count
+  const examples = count > 0 ? `${count} past ${count === 1 ? 'example' : 'examples'} used` : null
   if (resume.status === 'approved' && resume.reviewed_at) {
     const edited = resume.outcome === 'edited_then_approved' ? ' after your edits' : ''
-    return `Approved ${formatDay(resume.reviewed_at)}${edited} · Prompt ${resume.prompt_version}`
+    return [
+      `Approved ${formatDay(resume.reviewed_at)}${edited}`,
+      `Prompt ${resume.prompt_version}`,
+      examples,
+    ]
+      .filter(Boolean)
+      .join(' · ')
   }
-  return `Prompt ${resume.prompt_version} · Generated ${formatDay(resume.created_at)}`
+  return [`Prompt ${resume.prompt_version}`, examples, `Generated ${formatDay(resume.created_at)}`]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 async function copy(markdown: string) {

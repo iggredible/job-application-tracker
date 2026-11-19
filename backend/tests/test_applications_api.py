@@ -195,14 +195,23 @@ def test_endpoints_appear_in_openapi(client: TestClient) -> None:
     assert set(paths["/applications/{application_id}"]) == {"get", "patch"}
 
 
-def test_applications_table_has_no_posting_tsv_column(test_engine: Engine) -> None:
-    # submitted_resume_id arrived with feature 11 (migration 0009), nothing else.
+def test_applications_table_has_only_the_documented_columns(test_engine: Engine) -> None:
+    # submitted_resume_id arrived with feature 11 (migration 0009) and posting_tsv with
+    # feature 12 (migration 0010), nothing else.
     columns = {c["name"] for c in inspect(test_engine).get_columns("applications")}
 
     assert columns == {
         "id", "company", "role", "posting_url", "posting_text",
-        "source", "stage", "created_at", "updated_at", "submitted_resume_id",
+        "source", "stage", "created_at", "updated_at", "submitted_resume_id", "posting_tsv",
     }  # fmt: skip
+
+
+def test_the_search_column_never_reaches_the_api(client: TestClient) -> None:
+    created = client.post("/applications", json=VALID).json()
+
+    assert "posting_tsv" not in created
+    assert "posting_tsv" not in client.get(f"/applications/{created['id']}").json()
+    assert all("posting_tsv" not in row for row in client.get("/applications").json())
 
 
 def test_stage_and_source_enums_have_the_documented_values(test_engine: Engine) -> None:

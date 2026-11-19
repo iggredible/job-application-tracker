@@ -484,3 +484,49 @@ def test_the_submitted_resume_has_a_foreign_key_to_resumes(test_engine: Engine) 
 
     targets = {tuple(fk["constrained_columns"]): fk["referred_table"] for fk in foreign_keys}
     assert targets == {(POINTER,): "resumes"}
+
+
+# --- Example retrieval (feature 12) ---------------------------------------------------------------
+
+
+def test_the_retrieval_slice_follows_the_layering_rules() -> None:
+    service = _imports(APP_DIR / "services" / "retrieval.py")
+    repository = _imports(APP_DIR / "repositories" / "examples.py")
+
+    # services/ import no FastAPI and write no SQL.
+    assert not {m for m in service if m.startswith(("fastapi", "sqlalchemy"))}
+    # repositories/ make no HTTP or business decisions.
+    assert not {m for m in repository if m.startswith(("fastapi", "app.services", "app.api"))}
+
+
+def test_retrieval_makes_no_ai_call() -> None:
+    for name in ("services/retrieval.py", "repositories/examples.py"):
+        imports = _imports(APP_DIR / name)
+
+        assert not {m for m in imports if m.startswith(("app.ai", "anthropic"))}, name
+
+
+def test_the_tailoring_service_depends_on_the_retriever_interface_not_a_concrete_one() -> None:
+    imports = _imports(APP_DIR / "services" / "tailoring.py")
+    source = (APP_DIR / "services" / "tailoring.py").read_text()
+
+    assert "app.repositories.examples" not in imports
+    assert "FullTextRetriever" not in source
+    assert "ExampleRetriever" in source
+    # The concrete retriever is chosen where the service is wired up.
+    assert "FullTextRetriever" in (APP_DIR / "api" / "tailored_resumes.py").read_text()
+
+
+def test_the_prompt_version_does_not_change_when_retrieval_fills_the_examples() -> None:
+    from app.ai.prompts import tailor_resume
+
+    assert tailor_resume.VERSION == "v1"
+    assert not (APP_DIR / "ai" / "prompts" / "tailor_resume_v2.py").exists()
+
+
+def test_the_example_count_is_never_stored() -> None:
+    from app.models import AICall, Resume
+
+    stored = set(Resume.__table__.columns.keys()) | set(AICall.__table__.columns.keys())
+
+    assert not {c for c in stored if "example_count" in c}

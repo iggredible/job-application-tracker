@@ -23,6 +23,9 @@ class TailoredResumeRead(BaseModel):
     application_id: int
     status: ReviewStatus
     prompt_version: str
+    # How many past approved resumes were shown to the model as examples. Read from the AI call
+    # on request, never stored on the resume.
+    example_count: int
     content_markdown: str
     # The current flags, calculated on request from the text as it is now.
     guardrail_flags: list[GuardrailFlag]

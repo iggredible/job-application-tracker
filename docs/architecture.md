@@ -157,8 +157,8 @@ sequenceDiagram
   - `scripts/ai_smoke.py`: a hand-run check of the real API against the test stub. It is not part of `make test`.
   - `ai/schemas.py`: the output models the LLM must return (`PostingAnalysisOutput`, `Requirement`, `RequirementCategory`). They carry no limits such as `maxItems`; code enforces those after parsing.
   - `ai/prompts/posting_analysis.py`: prompt `posting_analysis` v1. It wraps the posting in `<posting>` tags, tells the model to treat it as data and neutralises any `</posting>` inside the text.
-  - `ai/prompts/tailor_resume.py`: prompt `tailor_resume` v1. Its user text wraps `<base_resume>`, `<posting>`, `<keywords>` and `<examples>`, and the examples block is always there, empty until feature 12. `ai/schemas.py` also holds `TailoredResume` and `Experience`.
-  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result, and `tailor()`, which makes one call and returns the validated `TailoredResume`.
+  - `ai/prompts/tailor_resume.py`: prompt `tailor_resume` v1. Its user text wraps `<base_resume>`, `<posting>`, `<keywords>` and `<examples>`, and the examples block is always there, empty when retrieval (feature 12) finds nothing. `ai/schemas.py` also holds `TailoredResume` and `Experience`.
+  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result, and `tailor()`, which makes one call, with the retrieved examples in the prompt and their resume ids logged, and returns the validated `TailoredResume`.
 - The wrapper writes one row per call to a log sink, including failures (API error, refusal, truncated output, validation error). The app's sink writes `ai_calls` and commits in its own transaction, so the row survives a rollback in the caller. The eval passes an in-memory sink.
 - `AIClient` returns the validated output and the `ai_call_id`, so artifacts can store the foreign key.
 - The model name and API key come from environment variables and never reach the frontend.
@@ -168,6 +168,15 @@ sequenceDiagram
 ## Retrieval
 
 `services/retrieval.py` defines an `ExampleRetriever` interface. The MVP implementation uses PostgreSQL full-text search over `applications.posting_tsv`, queried with the approved analysis keywords joined by OR (multi-word keywords quoted) and ranked by `ts_rank`. A vector-search implementation can replace it without changing the tailoring service.
+
+As built (feature 12):
+
+- `services/retrieval.py` holds the decisions: `ExampleRetriever` (the Protocol), `FullTextRetriever`, `build_search_query()` (every keyword quoted, joined with `or`), `format_examples()` and `MAX_EXAMPLES = 3`. It has no SQL and makes no AI call. `TailoredResumeService` depends on the Protocol; `api/tailored_resumes.py` picks `FullTextRetriever` when it wires the service.
+- `repositories/examples.py` holds the SQL: `ExampleRepository.search()` runs `websearch_to_tsquery('english', ...)` against `posting_tsv`, takes each application's newest approved tailored resume (`ai_call_id` set, so a snapshot never qualifies) and orders by `ts_rank`, then `reviewed_at`, then id. The order is total, so the same history gives the same examples.
+- `applications.posting_tsv` is a stored generated column (migration 0010) with a GIN index. The model defers it, so loading an application does not load it, and no schema exposes it.
+- `tailor()` takes the examples, fills the prompt's `<examples>` section (the notice line first, then each example labeled with its posting's approved keywords) and logs their resume ids in `ai_calls.retrieved_example_ids`. The prompt stays v1. An example is the approved `content_markdown`, so it includes the user's edits.
+- `TailoredResumeRead.example_count` is the length of the call's `retrieved_example_ids`, read on request and never stored. The Tailored resume header shows it ("2 past examples used") and shows nothing for zero.
+- Later improvements (embedding and hybrid search) are in the project overview, AI Design: Retrieval.
 
 ## Base resume
 
