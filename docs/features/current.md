@@ -1,4 +1,4 @@
-# Current Feature
+# Current Feature: 12 Example Retrieval
 
 ## Status
 
@@ -10,6 +10,18 @@ Not started
 
 <!-- What the spec requires, as bullets. -->
 
+- Migration adding `applications.posting_tsv` as a generated column with a GIN index
+- An `ExampleRetriever` interface and a `FullTextRetriever` implementation, so vector search can replace it later
+- Build the search query from the approved analysis keywords, combined with OR. Quote multi-word keywords so they stay phrases
+- Rank matches with `ts_rank` and take the top 3
+- Only consider applications that have an approved tailored resume; use the most recently approved one. A base-resume snapshot is not a tailored resume
+- Exclude the application being tailored
+- Add the examples to the prompt's examples section, each labeled with that posting's keywords, with a line stating they show style and emphasis only and are not a source of facts. This fills a section that `tailor_resume` v1 already has, so the prompt version does not change
+- Record the example resume ids in `ai_calls.retrieved_example_ids`
+- When nothing matches, tailoring runs with no examples
+- In the Tailored resume section header, show "N past examples used" for the displayed resume
+- Tests against a real PostgreSQL test database: ranking order, the exclusion rules and the empty case
+
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
@@ -17,6 +29,15 @@ Not started
 ## Notes
 
 <!-- Constraints, references and anything the next session needs. -->
+
+- Spec: `docs/features/12-retrieval-spec.md`
+- References: `docs/project-overview.md` (AI Design: Retrieval; Features E; schema for `applications` and `resumes`), `docs/architecture.md` (AI call path, Retrieval, "Snapshots are not tailored resumes"), `docs/features/08-tailored-draft-spec.md`, `docs/screenshots/detail-step-2.png` ("Prompt v1 · 2 past examples used · Generated Nov 16"), PostgreSQL full-text search: https://www.postgresql.org/docs/16/textsearch.html
+- Do not use `plainto_tsquery` on the keyword list. It requires every term to match and returns nothing.
+- Prefer `websearch_to_tsquery` with `or` between terms. It accepts raw input such as `c++` or `ci/cd` without syntax errors. The English configuration drops punctuation (`c++` becomes `c`), which is accepted for the MVP.
+- This feature is the first to drop if the schedule slips. Keep it isolated behind the interface. Nothing after it depends on it.
+- Already in place: `ai_calls.retrieved_example_ids` (JSONB, default `[]`), the `retrieved_example_ids` argument on `AIClient.generate()`, and `examples` on `ai/prompts/tailor_resume.render()` (empty block `<examples>\n</examples>` today). `applications.posting_tsv` does not exist yet.
+- Retrieval lives in `services/retrieval.py`. It is deterministic and does not call the LLM. Select tailored resumes with the repository's tailored predicate (`application_id` set and `ai_call_id` set), never snapshots.
+- Rejected and unreviewed drafts are never used as examples (overview, Features E).
 
 ## History
 
