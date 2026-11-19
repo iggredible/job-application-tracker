@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -25,6 +25,18 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- No migration and no new dependency. Coverage is derived on request, and `radix-ui` is already installed, so shadcn's `progress` component is added through the `shadcn` CLI.
+- `services/coverage.py` holds both the pure `keyword_coverage()` (no framework or SQL imports, reused by review and eval) and `CoverageService`. The service picks the analysis and resume; the function does the matching.
+- Matching: casefold both sides, collapse whitespace runs, escape each keyword (spaces become `\s+`) and wrap it in `(?<!\w)…(?!\w)`. `\b` fails on terms that start or end with punctuation (`c++`, `.net`), so lookarounds are used. Keywords are de-duplicated case-insensitively, blanks dropped, order and casing kept. `ratio = covered / unique keywords`.
+- Analysis choice: latest approved, else latest draft, never rejected. It is made in the service from `list_for_application`, so no new analyses query.
+- No usable analysis (none, or only rejected): 404 "no analysis"; the card hides the block. Empty keyword list: ratio 0.0 with empty lists; the card hides the block.
+- No base resume: the endpoint returns 404. The card uses the existing `useResume` (404 means none) to show the link to the Resume page, and does not call coverage until a base resume exists.
+- `resume_id` must be the base resume or a resume of this application, otherwise 404. Without `resume_id`, `base`, `newly_covered` and `still_missing` are omitted (`response_model_exclude_none`).
+- Spec followed literally on the card/coverage mismatch: after Analyze again on an approved analysis, the card shows the new draft while coverage still uses the approved one. No extra `analysis_id` field, because the spec does not list one.
+- Resume text is matched as written; Markdown is not stripped and there is no stemming (`api` does not match `apis`).
+- Saving the base resume, and approving, rejecting or re-running an analysis, invalidate the coverage query so the card stays current.
+- `docs/architecture.md` gets the as-built coverage module when the feature completes.
 
 ## Notes
 
