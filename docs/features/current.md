@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -34,6 +34,18 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Backend only: no migration, no model change, no dependency, no frontend change. The Playwright step does not apply; `/docs` and the seeded data are checked instead.
+- Files: `api/metrics.py`, `schemas/metrics.py`, `services/metrics.py`, and read-only queries added to the timeline, applications, resumes, posting analyses and AI calls repositories. `docs/architecture.md` gets a Metrics section and its "not exposed until feature 14" line is updated.
+- Aggregation is done in Python over rows from repositories, not in SQL, so `derive_outcome()`, `edit_ratio()`, `is_stale()`, `resume_kind()` and `allowed_next()` are reused as they are. The data is one user's, so volume is not a concern.
+- Reached a stage is read from `timeline_events` `to_stage`, never `applications.stage`. Accepted counts at Offer. Rejected and Withdrawn are not funnel stages. The share of the previous step is null when the previous count is 0 and for Applied.
+- Time in stage covers every non-terminal stage, Saved included (the screenshot shows it), taken from `allowed_next()` rather than a hard-coded list. An interval is a stage change to the next stage change. The current stage and terminal stages have no next change, so they drop out. Median is in days as a decimal, null when the sample is 0.
+- Response rate: among applications that reached Applied, those with a later stage change that is not Withdrawn. A rejection counts as a response.
+- Tailored vs base: `resume_kind()` of the submitted resume, so a snapshot counts as base. An application with no submitted resume is left out. Counts are returned unadjusted.
+- AI rows are grouped by `(feature, prompt_version, model)` so `seed` rows stay separate. Failed means `error IS NOT NULL`. Median latency covers every call in the group, failed included. Tokens and cost are sums of the values stored at call time; cost is returned as a number in USD.
+- Superseded is returned as its own count even though the screenshot has no column for it: the spec wins, and feature 15 decides whether to show it.
+- Average edit ratio is over approved tailored resumes only (the overview says "edit ratio before approval"), as-is ones counting 0. It is null for a group with no approved drafts and for posting analysis. Average flags per draft is over all tailored drafts in the group, from `guardrail_flags` as generated. Edited-then-approved is null for posting analysis.
+- Snapshots are excluded from the AI metrics by reading only resumes with both `application_id` and `ai_call_id` set.
 
 ## Notes
 
