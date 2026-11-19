@@ -36,7 +36,7 @@ The first word is the action. Anything after it is that action's argument.
 | `test` | Run all checks and confirm the spec's tests exist |
 | `review` | Check the work against the spec and the project rules |
 | `explain` | Explain what changed and how it fits together |
-| `complete` | Record what happened, commit, push the branch and reset (you merge) |
+| `complete` | Record what happened, commit, push the branch and reset `current.md` (you merge) |
 
 Read `actions/<action>.md` in this skill's folder and follow it exactly.
 
