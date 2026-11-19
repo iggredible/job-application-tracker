@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -26,6 +26,18 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Frontend only: feature 14 already returns every number, so no backend change and no migration.
+- The page renders API values and never recomputes a rate, median, share or count. Formatters only round and label. "n/a" follows the API's nulls, so the page does not decide which features a column applies to.
+- Funnel: one horizontal `BarChart` through the shadcn chart component (adds `recharts`, already listed in the overview). Labels come from `count` and `share_of_previous`; the first stage shows only its count. Default `ChartTooltip` kept.
+- Spec wins over the screenshot: Model and Superseded columns, and the spec's confounding note under tailored vs base.
+- Time in stage shows whichever stages the API returns (so Saved appears, terminal stages do not).
+- Formatting: percent to a whole number, days to one decimal with ".0" dropped (singular for 1), flags per draft one decimal, cost two decimals with `$`, latency in seconds to one decimal. Stage names use `stageLabel()`; feature names use a small label map.
+- Empty states, one per section: tiles show zeros; funnel "No applications have reached Applied yet"; time table "No completed stages yet"; comparison "No applications have been applied yet"; AI table "No AI calls yet".
+- Error state added: a one-line message per section when its query fails. The spec lists only loading and empty states; this was approved at planning so a failed query does not leave a blank or stuck section.
+- No cache invalidation from other pages. The default `staleTime` of 0 refetches when the page is opened.
+- Tests mock Recharts' `ResponsiveContainer` with a fixed size, because it measures zero in jsdom; Playwright covers the real rendering.
+- Files: `lib/metrics.ts`, `hooks/useMetrics.ts`, `components/insights/` (StatTiles, FunnelCard, TimeInStageCard, ResumeComparisonCard, AIPerformanceCard, SectionState), `pages/InsightsPage.tsx`, `components/ui/chart.tsx`, `pages/insights.test.tsx`.
 
 ## Notes
 
