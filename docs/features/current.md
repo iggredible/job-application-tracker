@@ -4,7 +4,7 @@
 
 <!-- Not started | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -23,6 +23,18 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Migration `0004_create_resumes` creates the `review_status` enum and `resumes` with only the spec's columns, plus `resumes_application_idx` and the unique partial index `resumes_one_base_idx`. The tailored-resume columns, the `draft_markdown` trigger and `applications.submitted_resume_id` wait for features 5, 8, 9 and 11, because their dependencies do not exist yet.
+- Layers: `api/resume.py`, `schemas/resume.py`, `services/resumes.py` (`ResumeService` with an injected clock, `ResumeNotFound`), `repositories/resumes.py`, `models/resume.py`. The service sets `status=approved` and `application_id=null`, so the API cannot send either (`ResumeWrite` forbids extra fields).
+- `PUT /resume` returns 200 whether it creates or replaces, because the spec treats it as one operation. A concurrent create that hits the unique index rolls back and retries as a replace.
+- Blank or whitespace-only content is rejected with 422, because a blank base resume would make tailoring meaningless. The text is otherwise stored exactly as typed.
+- `reviewed_at` stays null for the base resume, because no review happens.
+- "Last saved" is `updated_at`, and is hidden in the empty state.
+- Save is disabled only while saving or when the text is blank. No dirty tracking or unsaved-changes warning, because the spec does not list them.
+- The frontend treats a 404 from `GET /resume` as "no resume yet", not as an error.
+- No "tailored" or "snapshot" repository predicates yet, because nothing in this feature uses them.
+- `docs/architecture.md` is updated for the new service and endpoints.
+- No new dependencies.
 
 ## Notes
 
