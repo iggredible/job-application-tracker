@@ -254,6 +254,23 @@ Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(fi
 - `GET` and `POST /applications/{id}/tailored-resumes` return the current flags as `guardrail_flags`. At read time they use the current base resume and the latest approved analysis's keywords. The stored snapshot is not exposed. If the base resume were missing, the stored flags are returned.
 - `TailoredResumeSection` shows them in a warning box (`FlagsBox`) above the draft, and no box when there are none. Flags never block approval and are never auto-fixed.
 
+## Seed data
+
+`python -m scripts.seed` (`make seed`, or `make seed ARGS=--reset`) fills an empty database with fictional data. It makes no AI call. It lives outside `app/` and is the documented exception to the `change_stage()` rule: it writes stages, timeline events and review statuses directly, with explicit timestamps, through the repositories. The data still follows the transition table and the apply rules.
+
+| Module | Role |
+| --- | --- |
+| `scripts/seed.py` | The CLI and `seed(session, now=, reset=)`: refuses a non-empty database unless `reset`, inserts the plan in one transaction and rolls back on any failure |
+| `scripts/seed_plan.py` | `build_plan(now)`, pure: every row, chosen from `random.Random(13)` with all times counted back from `now`. It calls the real `render_tailored_markdown()`, `check()` and `edit_ratio()`, so the drafts, flags and edit ratios are real |
+| `scripts/seed_content.py` | The fictional base resume, company names, job families and notes |
+| `repositories/maintenance.py` | `is_empty()` and `truncate_all()` over every model table (`TRUNCATE ... RESTART IDENTITY CASCADE`), so ids are the same after `--reset` |
+
+- About 40 applications follow a fixed mix of paths (`PATHS`), so the stage spread, the funnel, the five stale applications and the higher response rate for tailored resumes are set by data, not by chance. Live applications get a recent note so only the chosen ones are stale.
+- About half have an approved analysis and tailored drafts (approved, edited, rejected, pending, superseded). The oldest use prompt `v1` and the rest `v2`, which edits less and has fewer flags. Two failed `ai_calls` rows have no artifact. All rows use model `seed` and a price passed to `estimate_cost()`, not added to `MODEL_PRICES`.
+- Applications past Saved (except those withdrawn from Saved) have a submitted resume: a tailored one that passes `unsubmittable_reason()`, or a snapshot of the base resume with its own row.
+- The same `now` gives identical rows. A real run uses the current time, so the relative layout is the same but the dates move.
+- `--reset` empties every table, including real data, with no confirmation.
+
 ## Frontend
 
 | Route | Page |
