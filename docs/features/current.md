@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -30,6 +30,20 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- No migration. `resumes` already has `reviewed_at` and `updated_at`, and the `draft_markdown` trigger already exists.
+- Feature 10 updates existing `resumes` rows only (`content_markdown`, `updated_at`, `status`, `reviewed_at`). It creates no rows, and writes no timeline events, `ai_calls` rows or `applications` changes. Reason: the spec lists none, and new drafts come only from Tailor (feature 8).
+- Status changes go through the existing `apply_decision()` in `services/review.py`, so the lifecycle stays in one place.
+- New `services/resume_review.py` holds `TailoredReviewService`, the pure `derive_outcome()` and the pure `edit_ratio()`. New `api/resumes.py` holds the three endpoints. Rows are locked with `SELECT … FOR UPDATE` so an edit and a decision cannot race.
+- `PATCH`, approve and reject only reach tailored resumes (`application_id` and `ai_call_id` both set). The base resume and snapshots return 404, because the base resume is edited through `PUT /resume`.
+- `displayed` and `outcome` are computed in one place from the full newest-first list and returned by the API. `displayed` is the newest resume if it is a `draft`, else the latest approved, else the latest rejected.
+- `PATCH` returns the resume plus coverage (the existing `ApplicationCoverageRead` shape) and the current flags. The "current flags" logic becomes one shared helper used by the list and by save.
+- Layout (assumption 1): side by side only while the status is `draft`. Approved and rejected show one read-only pane, as in `detail-step-3.png`. Rejected shows a Rejected badge and no Copy Markdown.
+- Approve with unsaved edits (assumption 2): the frontend sends `PATCH`, then `approve`. `approve` takes no body.
+- Superseded (assumption 3): a draft is superseded when any newer tailored resume exists for the same application, whatever its status.
+- `PATCH` with blank text returns 422 (assumption 4). A non-draft returns 409 and a base resume or snapshot returns 404 (assumption 5).
+- `outcome` is exposed in the API because "after your edits" needs it. `edit_ratio` is built and tested but not exposed, because its first consumer is feature 14.
+- Out of scope: the step strip and the Mark as applied section (feature 11), "2 past examples used" (feature 12), diff highlighting, regenerate with feedback.
 
 ## Notes
 
