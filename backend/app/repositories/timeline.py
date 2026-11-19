@@ -1,9 +1,20 @@
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import EventType, Stage, TimelineEvent
+
+
+@dataclass(frozen=True)
+class StageChange:
+    """An application moved to `to_stage` at `at`. The metrics read the timeline through these."""
+
+    application_id: int
+    from_stage: Stage | None
+    to_stage: Stage
+    at: datetime
 
 
 class TimelineRepository:
@@ -44,6 +55,20 @@ class TimelineRepository:
             query = query.where(TimelineEvent.application_id == application_id)
         query = query.group_by(TimelineEvent.application_id)
         return {owner: applied_at for owner, applied_at in self._session.execute(query)}
+
+    def stage_changes(self) -> list[StageChange]:
+        """Every stage change of every application, oldest first. Notes are not included."""
+        query = (
+            select(
+                TimelineEvent.application_id,
+                TimelineEvent.from_stage,
+                TimelineEvent.to_stage,
+                TimelineEvent.created_at,
+            )
+            .where(TimelineEvent.type == EventType.STAGE_CHANGE)
+            .order_by(TimelineEvent.created_at, TimelineEvent.id)
+        )
+        return [StageChange(*row) for row in self._session.execute(query)]
 
     def last_activity_by_application(self) -> dict[int, datetime]:
         query = select(TimelineEvent.application_id, func.max(TimelineEvent.created_at)).group_by(

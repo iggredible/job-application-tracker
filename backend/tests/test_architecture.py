@@ -530,3 +530,39 @@ def test_the_example_count_is_never_stored() -> None:
     stored = set(Resume.__table__.columns.keys()) | set(AICall.__table__.columns.keys())
 
     assert not {c for c in stored if "example_count" in c}
+
+
+# --- Metrics (feature 14) -----------------------------------------------------------------------
+
+METRICS_REPOSITORIES = (
+    "timeline.py",
+    "applications.py",
+    "resumes.py",
+    "posting_analyses.py",
+    "ai_calls.py",
+)
+
+
+def test_the_metrics_slice_follows_the_layering_rules() -> None:
+    api = _imports(APP_DIR / "api" / "metrics.py")
+    service = _imports(APP_DIR / "services" / "metrics.py")
+
+    # api/ holds no queries and no tables.
+    assert not {m for m in api if m.startswith("app.models") or m == "sqlalchemy"}
+    # services/ import no FastAPI and write no SQL.
+    assert not {m for m in service if m.startswith(("fastapi", "sqlalchemy"))}
+    # repositories/ make no HTTP or business decisions.
+    for name in METRICS_REPOSITORIES:
+        imports = _imports(APP_DIR / "repositories" / name)
+        assert not {m for m in imports if m.startswith(("fastapi", "app.services", "app.api"))}
+
+
+def test_the_metrics_service_reuses_the_existing_rules_instead_of_rewriting_them() -> None:
+    service = _imports(APP_DIR / "services" / "metrics.py")
+
+    assert {
+        "app.services.resume_review",  # derive_outcome(), edit_ratio()
+        "app.services.staleness",  # is_stale()
+        "app.services.submission",  # resume_kind()
+        "app.services.transitions",  # allowed_next()
+    } <= service

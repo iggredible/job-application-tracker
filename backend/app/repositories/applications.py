@@ -1,7 +1,20 @@
+from dataclasses import dataclass
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Application, Stage
+
+
+@dataclass(frozen=True)
+class ApplicationSummary:
+    """What the metrics read from an application: no posting text, no company."""
+
+    id: int
+    stage: Stage
+    created_at: datetime
+    submitted_resume_id: int | None
 
 
 class ApplicationRepository:
@@ -39,6 +52,16 @@ class ApplicationRepository:
         """Only stages that have applications appear in the result."""
         query = select(Application.stage, func.count()).group_by(Application.stage)
         return {stage: count for stage, count in self._session.execute(query)}
+
+    def summaries(self) -> list[ApplicationSummary]:
+        """Every application, reduced to the columns the metrics need."""
+        query = select(
+            Application.id,
+            Application.stage,
+            Application.created_at,
+            Application.submitted_resume_id,
+        ).order_by(Application.id)
+        return [ApplicationSummary(*row) for row in self._session.execute(query)]
 
     def update_stage(self, application: Application, stage: Stage) -> None:
         """The only place that writes `applications.stage`. Called only by change_stage()."""

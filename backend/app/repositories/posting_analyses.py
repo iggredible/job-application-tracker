@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, lazyload
 
 from app.models import PostingAnalysis, ReviewStatus
 
@@ -52,6 +52,12 @@ class PostingAnalysisRepository:
         for owner, status in self._session.execute(query):
             statuses.setdefault(owner, []).append(status)
         return statuses
+
+    def list_all(self) -> list[PostingAnalysis]:
+        """Every analysis, for the metrics. The AI call is not loaded: the metrics read the
+        calls themselves."""
+        query = select(PostingAnalysis).options(lazyload(PostingAnalysis.ai_call))
+        return list(self._session.scalars(query.order_by(PostingAnalysis.id)))
 
     def get_latest_approved(self, application_id: int) -> PostingAnalysis | None:
         query = (

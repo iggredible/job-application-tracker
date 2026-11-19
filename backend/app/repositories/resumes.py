@@ -2,7 +2,7 @@ from collections.abc import Collection
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, lazyload
 
 from app.models import Resume, ReviewStatus
 
@@ -63,6 +63,18 @@ class ResumeRepository:
             select(Resume)
             .where(Resume.application_id == application_id, Resume.ai_call_id.is_not(None))
             .order_by(Resume.created_at.desc(), Resume.id.desc())
+        )
+        return list(self._session.scalars(query))
+
+    def list_tailored(self) -> list[Resume]:
+        """Every tailored resume (made by an AI call for an application), for the metrics. The
+        base resume has no application and a base-resume snapshot has no AI call, so neither is
+        listed. The AI call is not loaded: the metrics read the calls themselves."""
+        query = (
+            select(Resume)
+            .where(Resume.application_id.is_not(None), Resume.ai_call_id.is_not(None))
+            .options(lazyload(Resume.ai_call))
+            .order_by(Resume.id)
         )
         return list(self._session.scalars(query))
 
