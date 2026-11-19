@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -32,6 +32,18 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Approve and reject are allowed only from `draft`; any other status returns 409. The spec is silent, and `architecture.md` defines the lifecycle as `draft -> approved | rejected`. The review lifecycle is data in `services/review.py` (reused by feature 10).
+- `GET /applications/{id}/analysis` returns `200 null` when there is no analysis. "No analysis" is a normal state, and 404 stays for an unknown application.
+- Approved and Rejected cards still show the requirements and keywords. Only the badge and the buttons differ per state.
+- Display rule lives in the service, not the repository: the newest analysis, except that a rejected newest never hides an older approved one.
+- The per-application-and-feature lock is `pg_try_advisory_xact_lock`, held in the request transaction across the AI call. It is non-blocking (second request gets 409 at once) and releases on commit, rollback or session close. The log sink uses its own session, so it is unaffected. Cost: one connection is held during the call.
+- Only `POST /applications/{id}/analysis` depends on `get_ai_client`, so GET, approve and reject work without an API key. `AIError` maps to a generic 502, `AIConfigurationError` to 503 (handler in `main.py`). The real error stays in `ai_calls.error`.
+- `analyze()` normalises keywords (lowercase, strip, drop blanks, dedupe keeping order, cap 25) after parsing. `ai_calls.response_json` keeps the raw model output; the saved row keeps the normalised one.
+- The posting is wrapped in `<posting>` delimiters, and any `</posting>` inside it is neutralised first. The prompt receives the posting text only, not company or role.
+- The Analyze buttons, and Approve and Reject, are disabled for the whole run.
+- Not built here: keyword coverage (feature 7), the step strip, locked tailoring, Mark as applied, and timeline entries for approve or reject (no event type for them).
+- Browser verification: up to 5 real Analyze calls approved by the user. Ask before making more.
 
 ## Notes
 
