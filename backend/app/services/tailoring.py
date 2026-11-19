@@ -1,3 +1,5 @@
+from dataclasses import asdict, dataclass
+
 from app.ai.types import AIClient
 from app.core.clock import Clock, utc_now
 from app.models import AIFeature, Resume, ReviewStatus
@@ -7,6 +9,7 @@ from app.repositories.posting_analyses import PostingAnalysisRepository
 from app.repositories.resumes import ResumeRepository
 from app.services.applications import ApplicationNotFound
 from app.services.generation import tailor
+from app.services.guardrail import Flag, check, current_flags
 from app.services.rendering import render_tailored_markdown
 from app.services.transitions import GuardContext, run_guards
 
@@ -21,6 +24,15 @@ class TailoringBlocked(Exception):
 
 class TailoringInProgress(Exception):
     """A tailoring for this application is already running."""
+
+
+@dataclass(frozen=True)
+class TailoredDraft:
+    """A tailored resume with the guardrail flags to show beside it (the current flags, not the
+    stored ones)."""
+
+    resume: Resume
+    flags: list[Flag]
 
 
 class TailoredResumeService:
@@ -38,13 +50,14 @@ class TailoredResumeService:
         self._locks = locks
         self._clock = clock
 
-    def run(self, application_id: int, ai: AIClient) -> Resume:
+    def run(self, application_id: int, ai: AIClient) -> TailoredDraft:
         """Make one AI call and save the result as a draft tailored resume.
 
         The guards run first, so a refused request makes no call. The lock is held in this
         transaction until the draft is saved (or the call fails), so a second request for the
         same application is refused. A failed call saves nothing: the client has already logged
-        it in its own transaction.
+        it in its own transaction. The guardrail check runs on the output in this same call, and
+        its flags are saved as generated.
         """
         application = self._applications.get(application_id)
         if application is None:
@@ -71,6 +84,7 @@ class TailoredResumeService:
                 application_id=application_id,
             )
             markdown = render_tailored_markdown(base.content_markdown, result.output)
+            flags = check(result.output, base.content_markdown, analysis.keywords)
             now = self._clock()
             resume = self._resumes.add_draft(
                 Resume(
@@ -79,6 +93,7 @@ class TailoredResumeService:
                     content_json=result.output.model_dump(mode="json"),
                     draft_markdown=markdown,
                     content_markdown=markdown,
+                    guardrail_flags=[asdict(flag) for flag in flags],
                     status=ReviewStatus.DRAFT,
                     created_at=now,
                     updated_at=now,
@@ -89,10 +104,27 @@ class TailoredResumeService:
             self._resumes.rollback()  # also releases the lock
             raise
         self._resumes.refresh(resume)
-        return resume
+        return TailoredDraft(resume, flags)
 
-    def list_for_application(self, application_id: int) -> list[Resume]:
-        """Newest first."""
+    def list_for_application(self, application_id: int) -> list[TailoredDraft]:
+        """Newest first, each with its current flags.
+
+        The flags follow the text as it is now, the current base resume and the latest approved
+        analysis's keywords. The flags as generated stay in `guardrail_flags`.
+        """
         if self._applications.get(application_id) is None:
             raise ApplicationNotFound
-        return self._resumes.list_tailored_for_application(application_id)
+        resumes = self._resumes.list_tailored_for_application(application_id)
+        base = self._resumes.get_base()
+        analysis = self._analyses.get_latest_approved(application_id)
+        keywords = analysis.keywords if analysis else []
+        drafts = []
+        for resume in resumes:
+            stored = [Flag(**flag) for flag in resume.guardrail_flags]
+            flags = (
+                stored
+                if base is None
+                else current_flags(stored, resume.content_markdown, base.content_markdown, keywords)
+            )
+            drafts.append(TailoredDraft(resume, flags))
+        return drafts

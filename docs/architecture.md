@@ -185,19 +185,35 @@ One editable Markdown document, stored as the `resumes` row with no application 
 | Module | Role |
 | --- | --- |
 | `api/tailored_resumes.py` | The two routes. Only the POST depends on `get_ai_client`. Maps `TailoringBlocked` to 409 with the guard's reason, `TailoringInProgress` to 409, `AIError` to a generic 502 and a missing application to 404. |
-| `services/tailoring.py` | `TailoredResumeService`: `run()` (load the application, run the `start_tailoring` guards, take the lock, `tailor()`, render, save, commit; rolls back on any failure) and `list_for_application()`. |
+| `services/tailoring.py` | `TailoredResumeService`: `run()` (load the application, run the `start_tailoring` guards, take the lock, `tailor()`, render, `check()`, save with the flags, commit; rolls back on any failure) and `list_for_application()`. Both return `TailoredDraft(resume, flags)`, where `flags` are the current flags. |
 | `services/generation.py` | `tailor()`, the pure function that makes the call. It touches no database. |
 | `services/rendering.py` | `render_tailored_markdown(base, tailored)`, pure. It splits the base resume by headings, replaces the Summary, Experience and Skills sections and copies everything else through. |
 | `services/transitions.py` | The two guards, registered under `"start_tailoring"`. `GuardContext` carries `approved_analysis` and `base_resume`. |
 | `repositories/resumes.py` | `add_draft()` (flush only) and `list_tailored_for_application()`, which uses the "tailored" predicate (application set, `ai_call_id` not null). |
 | `repositories/posting_analyses.py` | `get_latest_approved()`, the query behind the analysis guard. |
-| `models/resume.py` | The new `ai_call_id`, `content_json` and `draft_markdown` columns, and an `ai_call` relationship that supplies the prompt version. |
+| `models/resume.py` | The new `ai_call_id`, `content_json`, `draft_markdown` and `guardrail_flags` columns, and an `ai_call` relationship that supplies the prompt version. |
 
 - One resume has exactly one AI call (`resumes.ai_call_id`). Tailoring again adds a row with its own call and leaves older drafts alone. A failed call is logged in `ai_calls` and saves no resume.
 - The guards run before the lock and before any AI call, so a refused request costs nothing. Tailoring uses the latest approved analysis, even when a newer draft analysis exists.
 - The renderer treats a section as running from a matching heading to the next heading of the same or higher level, ignores headings inside code fences, keeps the base section when the model gives nothing for it, and adds a missing section after the header in the order Summary, Experience, Skills.
-- Migration 0007 adds the columns and a trigger that rejects any change to `draft_markdown` after insert, so the original draft is preserved for the edit ratio.
+- Migration 0007 adds the columns and a trigger that rejects any change to `draft_markdown` after insert, so the original draft is preserved for the edit ratio. Migration 0008 adds `guardrail_flags` (see Guardrail check).
 - The Tailored resume section (`TailoredResumeSection`) is Locked, Ready or Draft. Until the workflow steps come from the API (feature 11), it is locked unless the analysis the API returns for display is approved. The server guard stays authoritative.
+
+## Guardrail check
+
+Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(field, value, message)` dataclass. Matching uses one normalizer (casefold, en and em dashes to `-`, whitespace collapsed) and whole-word phrase matching with `(?<!\w)phrase(?!\w)`, so `Go` is not found in `Google` and terms such as `c++` and `.net` work.
+
+| Function | Role |
+| --- | --- |
+| `check(tailored, base_text, keywords)` | Runs once, in `TailoredResumeService.run()`, on the model's structured output. The result is stored in `resumes.guardrail_flags` (JSONB, NOT NULL, default `[]`, migration 0008) and never changes. Metrics read it. |
+| `current_flags(flags, content_markdown, base_text, keywords)` | What the user sees. A stored structural flag (employer, title, dates, skill) stays only while its value is in the text. Number and keyword flags are calculated again from the Markdown. A structural fact the user adds is not re-checked. |
+
+- Flags are ordered by field (employer, title, dates, number, skill, keyword), so both functions agree on an untouched draft.
+- Dates compare years as whole tokens and months by their first three letters, read as month words only (`Marketing` is not March). `Present` and `Current` are ignored. Numeric months such as `01/2021` are not compared.
+- A number token starts at a digit and takes the letters, digits and `,` `.` `%` glued to it, so `$1.2B` and `10k` are one token each. A token must be in the base's set of tokens, so `5` does not pass because `2025` exists.
+- `current_flags` reads numbers from the Summary body and from bullet lines, and keywords from those and the Skills body. Headings are never scanned, because a job's title and dates are structural fields. It finds the sections with `find_headings()` from `services/rendering.py`.
+- `GET` and `POST /applications/{id}/tailored-resumes` return the current flags as `guardrail_flags`. At read time they use the current base resume and the latest approved analysis's keywords. The stored snapshot is not exposed. If the base resume were missing, the stored flags are returned.
+- `TailoredResumeSection` shows them in a warning box (`FlagsBox`) above the draft, and no box when there are none. Flags never block approval and are never auto-fixed.
 
 ## Frontend
 

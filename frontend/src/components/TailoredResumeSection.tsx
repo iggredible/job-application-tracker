@@ -1,12 +1,14 @@
-import { Loader2, Lock } from 'lucide-react'
+import { Loader2, Lock, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAnalysis } from '@/hooks/useAnalysis'
 import { useTailoredResumes, useTailorResume } from '@/hooks/useTailoredResumes'
 import { formatDay } from '@/lib/applications'
+import type { GuardrailFlag } from '@/lib/tailoredResumes'
 
 /** The Tailored resume section: locked until the posting analysis is approved, then ready, then
  * showing the newest draft read-only. The API refuses a tailoring without an approved analysis;
@@ -97,12 +99,35 @@ export function TailoredResumeSection({ applicationId }: { applicationId: number
             {label('Tailor again')}
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {latest.guardrail_flags.length > 0 && <FlagsBox flags={latest.guardrail_flags} />}
           <pre className="max-h-[32rem] overflow-auto rounded-lg border bg-muted/40 p-4 font-mono text-sm whitespace-pre-wrap">
             {latest.content_markdown}
           </pre>
         </CardContent>
       </Card>
     </section>
+  )
+}
+
+/** The flags for the draft shown below it. The API sends the current flags, so editing updates
+ * them; the box is not drawn when there are none. */
+function FlagsBox({ flags }: { flags: GuardrailFlag[] }) {
+  const many = flags.length !== 1
+  return (
+    <Alert className="border-amber-300 bg-amber-50 text-amber-950">
+      <TriangleAlert aria-hidden="true" />
+      <AlertTitle>
+        {`${flags.length} ${many ? 'things' : 'thing'} in this draft ${many ? 'are' : 'is'} not in your base resume`}
+      </AlertTitle>
+      <AlertDescription className="text-amber-900">
+        <ul className="list-disc pl-5">
+          {flags.map((flag) => (
+            <li key={`${flag.field}:${flag.value}`}>{flag.message}</li>
+          ))}
+        </ul>
+        <p>Edit or remove them, or keep them if they are true. Flags do not block approval.</p>
+      </AlertDescription>
+    </Alert>
   )
 }

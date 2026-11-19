@@ -39,7 +39,7 @@ def _skills(tailored: TailoredResume, level: int) -> list[str]:
 _SECTIONS: dict[str, _Body] = {"summary": _summary, "experience": _experience, "skills": _skills}
 
 
-def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
+def find_headings(lines: list[str]) -> list[tuple[int, int, str]]:
     """(line index, level, lowercase name) of every heading outside a fenced code block."""
     found = []
     in_fence = False
@@ -53,7 +53,7 @@ def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
 
 def render_tailored_markdown(base_markdown: str, tailored: TailoredResume) -> str:
     lines = base_markdown.split("\n")
-    headings = _headings(lines)
+    headings = find_headings(lines)
 
     # The header is the text before the first heading, plus a leading `#` title and its body.
     header_end = headings[0][0] if headings else len(lines)

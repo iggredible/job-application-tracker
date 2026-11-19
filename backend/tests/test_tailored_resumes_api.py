@@ -415,3 +415,98 @@ def test_get_does_not_list_the_base_resume_or_another_applications_drafts(
 
     assert len(client.get(f"/applications/{application_id}/tailored-resumes").json()) == 1
     assert client.get(f"/applications/{other}/tailored-resumes").json() == []
+
+
+# --- guardrail flags ----------------------------------------------------------------------------
+
+# Everything TAILORED claims that BASE does not support: the employer, the title, the dates (2021
+# and 2026 are not in BASE) and the number 5. The skills and keywords are in BASE.
+DIRTY_FIELDS = ["employer", "title", "dates", "number"]
+
+CLEAN_BASE = (
+    "# Jordan Avery\n\n## Summary\nOld summary.\n\n## Experience\n"
+    "### Lead Software Engineer — Coldline Logistics (Jun 2021 — May 2026)\n"
+    "- Led a team of 5\n\n## Skills\nRuby on Rails, PostgreSQL\n"
+)
+
+
+def stored_flags(engine: Engine) -> list[dict]:
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT guardrail_flags FROM resumes WHERE application_id IS NOT NULL")
+        ).scalar_one()
+
+
+def test_post_returns_a_flag_for_each_fact_that_is_not_in_the_base_resume(
+    client: TestClient, ready: FakeAIClient, application_id: int
+) -> None:
+    body = tailor(client, application_id)
+
+    assert [flag["field"] for flag in body["guardrail_flags"]] == DIRTY_FIELDS
+    assert body["guardrail_flags"][0] == {
+        "field": "employer",
+        "value": "Coldline Logistics",
+        "message": 'Employer "Coldline Logistics"',
+    }
+    assert body["guardrail_flags"][3]["message"] == 'Number "5" in "Led a team of 5"'
+
+
+def test_post_stores_the_flags_as_generated(
+    client: TestClient, ready: FakeAIClient, application_id: int, test_engine: Engine
+) -> None:
+    body = tailor(client, application_id)
+
+    assert stored_flags(test_engine) == body["guardrail_flags"]
+
+
+def test_a_draft_with_nothing_to_flag_has_no_flags_returned_or_stored(
+    client: TestClient, ready: FakeAIClient, application_id: int, test_engine: Engine
+) -> None:
+    assert client.put("/resume", json={"content_markdown": CLEAN_BASE}).status_code == 200
+
+    body = tailor(client, application_id)
+
+    assert body["guardrail_flags"] == []
+    assert stored_flags(test_engine) == []
+
+
+def test_flags_do_not_block_the_draft_and_do_not_change_it(
+    client: TestClient, ready: FakeAIClient, application_id: int, test_engine: Engine
+) -> None:
+    body = tailor(client, application_id)
+
+    assert body["status"] == "draft"
+    assert body["content_markdown"] == render_tailored_markdown(BASE, TAILORED)  # not auto-fixed
+
+
+def test_get_returns_the_current_flags_of_each_draft(
+    client: TestClient, ready: FakeAIClient, application_id: int, clock: FakeClock
+) -> None:
+    tailor(client, application_id)
+    clock.advance(hours=1)
+    tailor(client, application_id)
+
+    drafts = client.get(f"/applications/{application_id}/tailored-resumes").json()
+
+    assert len(drafts) == 2
+    for draft in drafts:
+        assert [flag["field"] for flag in draft["guardrail_flags"]] == DIRTY_FIELDS
+
+
+def test_get_follows_an_edit_while_the_stored_flags_stay_as_generated(
+    client: TestClient, ready: FakeAIClient, application_id: int, test_engine: Engine
+) -> None:
+    tailor(client, application_id)
+    with test_engine.begin() as conn:
+        # What saving an edit will do (feature 10): content_markdown changes, draft_markdown not.
+        conn.execute(
+            text(
+                "UPDATE resumes SET content_markdown = replace(content_markdown, "
+                "'Led a team of 5', 'Led a team') WHERE application_id IS NOT NULL"
+            )
+        )
+
+    [draft] = client.get(f"/applications/{application_id}/tailored-resumes").json()
+
+    assert [flag["field"] for flag in draft["guardrail_flags"]] == ["employer", "title", "dates"]
+    assert [flag["field"] for flag in stored_flags(test_engine)] == DIRTY_FIELDS

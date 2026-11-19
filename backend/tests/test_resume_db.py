@@ -22,7 +22,7 @@ def test_resumes_table_has_only_the_documented_columns(test_engine: Engine) -> N
 
     assert set(columns) == {
         "id", "application_id", "ai_call_id", "content_json", "draft_markdown",
-        "content_markdown", "status", "created_at", "updated_at", "reviewed_at",
+        "content_markdown", "status", "created_at", "updated_at", "reviewed_at", "guardrail_flags",
     }  # fmt: skip
     assert columns["application_id"]["nullable"] is True
     assert columns["content_markdown"]["nullable"] is False

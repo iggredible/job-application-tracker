@@ -83,3 +83,14 @@ def test_other_columns_can_still_change(test_engine: Engine) -> None:
         row = conn.execute(text("SELECT content_markdown, status FROM resumes")).one()
 
     assert tuple(row) == ("again", "approved")
+
+
+def test_guardrail_flags_default_to_an_empty_list_and_are_never_null(test_engine: Engine) -> None:
+    columns = {c["name"]: c for c in inspect(test_engine).get_columns("resumes")}
+    with test_engine.begin() as conn:
+        conn.execute(INSERT_BASE, {"markdown": "base"})
+        stored = conn.execute(text("SELECT guardrail_flags FROM resumes")).scalar_one()
+
+    assert str(columns["guardrail_flags"]["type"]) == "JSONB"
+    assert columns["guardrail_flags"]["nullable"] is False
+    assert stored == []
