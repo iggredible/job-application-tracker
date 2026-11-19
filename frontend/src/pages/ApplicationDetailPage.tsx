@@ -3,6 +3,7 @@ import { useParams } from 'react-router'
 
 import { ApplicationDialog } from '@/components/ApplicationDialog'
 import { ChangeStageMenu } from '@/components/ChangeStageMenu'
+import { PostingAnalysisCard } from '@/components/PostingAnalysisCard'
 import { StageBadge } from '@/components/StageBadge'
 import { Timeline } from '@/components/Timeline'
 import { Button } from '@/components/ui/button'
@@ -47,26 +48,31 @@ export function ApplicationDetailPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Job posting</CardTitle>
-          {application.posting_url && (
-            <a
-              href={application.posting_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm underline"
-            >
-              Open original
-            </a>
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className="max-h-96 overflow-y-auto rounded-lg border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
-            {application.posting_text}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <section aria-label="Job posting">
+          <Card className="h-full">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">Job posting</CardTitle>
+              {application.posting_url && (
+                <a
+                  href={application.posting_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm underline"
+                >
+                  Open original
+                </a>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-96 overflow-y-auto rounded-lg border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
+                {application.posting_text}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+        <PostingAnalysisCard applicationId={application.id} />
+      </div>
 
       <Timeline applicationId={application.id} />
 

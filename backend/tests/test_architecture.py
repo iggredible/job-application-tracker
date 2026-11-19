@@ -257,3 +257,71 @@ def test_no_model_name_or_key_is_hard_coded_outside_the_price_table() -> None:
                     offenders.append(f"{relative}:{node.lineno}")
 
     assert offenders == []
+
+
+# --- Posting analysis (feature 6) ---------------------------------------------------------------
+
+
+def test_the_analysis_slice_follows_the_layering_rules() -> None:
+    api = _imports(APP_DIR / "api" / "analysis.py")
+    services = [
+        _imports(APP_DIR / "services" / name)
+        for name in ("analysis.py", "generation.py", "review.py")
+    ]
+    repositories = [
+        _imports(APP_DIR / "repositories" / name) for name in ("posting_analyses.py", "locks.py")
+    ]
+
+    # api/ holds no queries and no tables.
+    assert not {m for m in api if m.startswith("app.models") or m == "sqlalchemy"}
+    # services/ import no FastAPI and write no SQL.
+    for imports in services:
+        assert not {m for m in imports if m.startswith(("fastapi", "sqlalchemy"))}
+    # repositories/ make no HTTP or business decisions.
+    for imports in repositories:
+        assert not {m for m in imports if m.startswith(("fastapi", "app.services", "app.api"))}
+
+
+def test_analyze_touches_no_database() -> None:
+    imports = _imports(APP_DIR / "services" / "generation.py")
+
+    forbidden = {m for m in imports if m.startswith(("sqlalchemy", "app.repositories"))}
+    forbidden |= {m for m in imports if m in {"app.core.db", "app.ai.sinks"}}
+    assert forbidden == set()
+
+
+def test_only_the_review_rules_assign_a_status() -> None:
+    allowed = {"services/review.py", "services/resumes.py"}  # resumes: the base resume is approved
+    offenders = []
+    for path, tree in _sources():
+        relative = path.relative_to(APP_DIR).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign | ast.AugAssign | ast.AnnAssign):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                for target in targets:
+                    is_status = isinstance(target, ast.Attribute) and target.attr == "status"
+                    if is_status and relative not in allowed:
+                        offenders.append(f"{relative}:{node.lineno}")
+
+    assert offenders == []
+
+
+def test_an_analysis_is_never_created_with_a_status() -> None:
+    # Every analysis is saved as a draft (the column default). Only approve or reject changes it.
+    offenders = []
+    for path, tree in _sources():
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _call_name(node) == "PostingAnalysis":
+                if any(keyword.arg == "status" for keyword in node.keywords):
+                    offenders.append(f"{path.relative_to(APP_DIR)}:{node.lineno}")
+
+    assert offenders == []
+
+
+def test_the_analysis_repository_has_no_delete() -> None:
+    from app.repositories.posting_analyses import PostingAnalysisRepository
+
+    methods = {n for n, _ in inspect.getmembers(PostingAnalysisRepository, inspect.isfunction)}
+
+    assert not {m for m in methods if m.startswith(("delete", "remove"))}
+    assert {"add", "get", "list_for_application"} <= methods

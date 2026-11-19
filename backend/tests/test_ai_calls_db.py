@@ -95,5 +95,7 @@ def test_truncate_is_not_blocked_on_ai_calls(test_engine: Engine) -> None:
     insert_call(test_engine)
 
     with test_engine.begin() as conn:
-        conn.execute(text("TRUNCATE ai_calls RESTART IDENTITY"))
+        # CASCADE because posting_analyses (feature 6) references ai_calls. The triggers on
+        # ai_calls still do not block TRUNCATE.
+        conn.execute(text("TRUNCATE ai_calls RESTART IDENTITY CASCADE"))
         assert conn.execute(text("SELECT count(*) FROM ai_calls")).scalar_one() == 0
