@@ -2,7 +2,7 @@
 
 ## Status
 
-Not started
+Planned
 
 ## Goals
 
@@ -26,7 +26,17 @@ Not started
 
 ## Decisions
 
-<!-- Choices made while planning or building, with the reason. -->
+- Location: `backend/evals/` (the project layout puts it there), run from `backend/` by `make eval`. Outside `app/`, so nothing in `app/` imports it.
+- Keywords: `tailor()` gets the keywords from `analyze()` directly, and the same keywords are used for the guardrail and coverage. The eval has no approval step.
+- Scoring is a pure module (`evals/scoring.py`) with no I/O and no AI, so the CI unit test runs it with fake drafts. Coverage and forbidden skills use the rendered Markdown draft; flags use the structured output, as the app does.
+- Forbidden skills are checked with `keyword_coverage()`, so they follow the same word-boundary rules as the app (`Go` does not match `Google`). The fixture loader rejects a forbidden skill that the base resume already contains.
+- Only employer, title, dates and number flags fail a fixture. Skill and keyword flags are reported only.
+- A failed AI call fails that fixture and the run continues. Missing `ANTHROPIC_API_KEY` or `ANTHROPIC_MODEL` exits 2; any failed fixture exits 1; all pass exits 0.
+- Results file: `evals/results/<analysis-version>_<tailor-version>_<model>.json`, with versions read from the in-memory sink's records. It holds every flag, coverage before and after, forbidden skills found, tokens and cost, and not the full drafts. A rerun with the same versions and model overwrites it; git history keeps the old one.
+- Four fixtures: `backend-python-clean`, `frontend-react`, `data-engineer-trap`, `already-covered`.
+- The eval makes no database session and uses `InMemoryLogSink`. No new dependency, no migration.
+- Writing the `v2` prompt is not part of this feature. It follows the first `v1` results.
+- No compare command: `v1` and `v2` are compared from the two committed results files. Compare total flags per fixture, not only pass or fail, because the model has no temperature setting and one run is noisy.
 
 ## Notes
 
