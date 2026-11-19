@@ -5,6 +5,7 @@ import { ApplicationDialog } from '@/components/ApplicationDialog'
 import { ChangeStageMenu } from '@/components/ChangeStageMenu'
 import { PostingAnalysisCard } from '@/components/PostingAnalysisCard'
 import { StageBadge } from '@/components/StageBadge'
+import { TailoredResumeSection } from '@/components/TailoredResumeSection'
 import { Timeline } from '@/components/Timeline'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -73,6 +74,8 @@ export function ApplicationDetailPage() {
         </section>
         <PostingAnalysisCard applicationId={application.id} />
       </div>
+
+      <TailoredResumeSection applicationId={application.id} />
 
       <Timeline applicationId={application.id} />
 

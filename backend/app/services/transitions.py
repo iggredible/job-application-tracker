@@ -2,15 +2,15 @@
 
 A transition is allowed when the target is in TRANSITIONS[current]. A guard is a function
 `(context) -> None | GuardFailure` registered in GUARDS under an action: a `(from, to)` stage
-pair, or a string for another gated step such as "start_tailoring". GUARDS is empty for now;
-features 8 and 11 add the real guards.
+pair, or a string for another gated step such as "start_tailoring". Feature 8 registers the
+tailoring guards; feature 11 adds the stage guards.
 """
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.models import Application, Stage
+from app.models import Application, PostingAnalysis, Resume, Stage
 
 S = Stage
 
@@ -42,12 +42,29 @@ class GuardContext:
 
     application: Application | None
     extra: Mapping[str, Any] = field(default_factory=dict)
+    approved_analysis: PostingAnalysis | None = None
+    base_resume: Resume | None = None
 
 
 Action = tuple[Stage, Stage] | str
 Guard = Callable[[GuardContext], GuardFailure | None]
 
-GUARDS: dict[Action, list[Guard]] = {}
+
+def require_approved_analysis(context: GuardContext) -> GuardFailure | None:
+    if context.approved_analysis is None:
+        return GuardFailure("The posting analysis must be approved before tailoring.")
+    return None
+
+
+def require_base_resume(context: GuardContext) -> GuardFailure | None:
+    if context.base_resume is None:
+        return GuardFailure("Save a base resume before tailoring.")
+    return None
+
+
+GUARDS: dict[Action, list[Guard]] = {
+    "start_tailoring": [require_approved_analysis, require_base_resume],
+}
 
 
 def run_guards(action: Action, context: GuardContext) -> GuardFailure | None:

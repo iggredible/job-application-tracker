@@ -30,8 +30,28 @@ class ResumeRepository:
             raise BaseResumeExists from None
         return resume
 
+    def add_draft(self, resume: Resume) -> Resume:
+        """Insert a tailored resume and flush so its id is available. The caller commits."""
+        self._session.add(resume)
+        self._session.flush()
+        return resume
+
+    def list_tailored_for_application(self, application_id: int) -> list[Resume]:
+        """Tailored resumes (made by an AI call) of one application, newest first. The base
+        resume has no application and a base-resume snapshot has no AI call, so neither is
+        listed."""
+        query = (
+            select(Resume)
+            .where(Resume.application_id == application_id, Resume.ai_call_id.is_not(None))
+            .order_by(Resume.created_at.desc(), Resume.id.desc())
+        )
+        return list(self._session.scalars(query))
+
     def commit(self) -> None:
         self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
 
     def refresh(self, resume: Resume) -> None:
         self._session.refresh(resume)

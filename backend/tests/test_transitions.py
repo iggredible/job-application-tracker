@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models import Stage
+from app.models import PostingAnalysis, Resume, Stage
 from app.services.staleness import STALE_AFTER_DAYS, idle_days, is_stale
 from app.services.transitions import (
     GUARDS,
@@ -12,6 +12,8 @@ from app.services.transitions import (
     GuardContext,
     GuardFailure,
     allowed_next,
+    require_approved_analysis,
+    require_base_resume,
     run_guards,
 )
 
@@ -76,9 +78,41 @@ def test_every_stage_has_an_entry_in_the_transition_table() -> None:
     assert set(TRANSITIONS) == set(Stage)
 
 
-def test_guards_start_empty_and_passing() -> None:
-    assert GUARDS == {}
+def test_the_only_registered_guards_are_for_starting_a_tailoring() -> None:
+    assert list(GUARDS) == ["start_tailoring"]
+    assert GUARDS["start_tailoring"] == [require_approved_analysis, require_base_resume]
     assert run_guards((S.SAVED, S.APPLIED), GuardContext(application=None)) is None
+
+
+def test_tailoring_needs_an_approved_analysis() -> None:
+    analysis = PostingAnalysis(keywords=["go"])
+
+    assert require_approved_analysis(GuardContext(application=None)) == GuardFailure(
+        "The posting analysis must be approved before tailoring."
+    )
+    context = GuardContext(application=None, approved_analysis=analysis)
+    assert require_approved_analysis(context) is None
+
+
+def test_tailoring_needs_a_base_resume() -> None:
+    resume = Resume(content_markdown="## Skills")
+
+    assert require_base_resume(GuardContext(application=None)) == GuardFailure(
+        "Save a base resume before tailoring."
+    )
+    assert require_base_resume(GuardContext(application=None, base_resume=resume)) is None
+
+
+def test_the_analysis_guard_runs_before_the_base_resume_guard() -> None:
+    failure = run_guards("start_tailoring", GuardContext(application=None))
+
+    assert failure == require_approved_analysis(GuardContext(application=None))
+    ready = GuardContext(
+        application=None,
+        approved_analysis=PostingAnalysis(keywords=[]),
+        base_resume=Resume(content_markdown="x"),
+    )
+    assert run_guards("start_tailoring", ready) is None
 
 
 def test_a_failing_guard_is_reported_with_its_reason(monkeypatch: pytest.MonkeyPatch) -> None:

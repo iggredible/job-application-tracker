@@ -1,9 +1,12 @@
 import enum
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Text, func, text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.models.ai_call import AICall
 from app.models.base import Base, enum_type
 
 
@@ -29,6 +32,10 @@ class Resume(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id"))
+    ai_call_id: Mapped[int | None] = mapped_column(ForeignKey("ai_calls.id"))
+    content_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # the model's output
+    # As generated. A database trigger rejects any change to it.
+    draft_markdown: Mapped[str | None] = mapped_column(Text)
     content_markdown: Mapped[str] = mapped_column(Text)
     status: Mapped[ReviewStatus] = mapped_column(
         enum_type(ReviewStatus, "review_status"),
@@ -37,3 +44,6 @@ class Resume(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # The prompt version is read from the call. Null for the base resume.
+    ai_call: Mapped[AICall | None] = relationship(lazy="joined")

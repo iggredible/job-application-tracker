@@ -22,3 +22,16 @@ class Requirement(BaseModel):
 class PostingAnalysisOutput(BaseModel):
     requirements: list[Requirement]
     keywords: list[str]
+
+
+class Experience(BaseModel):
+    employer: str
+    title: str
+    dates: str
+    bullets: list[str]
+
+
+class TailoredResume(BaseModel):
+    summary: str
+    experiences: list[Experience]
+    skills: list[str]

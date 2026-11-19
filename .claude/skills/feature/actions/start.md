@@ -15,6 +15,16 @@
 
 Do not commit. Do not start anything the spec does not list.
 
+## Keep the code simple
+
+- Do not over-engineer.
+- Write the shortest working diff that solves the exact request.
+- Check existing codebase utilities and standard libraries before writing new code
+- Do not create abstractions, wrappers, or helpers for single-use logic.
+- Do not add configuration options, feature flags, or error handling for speculative edge cases.
+- Touch only files and lines required by the task; avoid drive-by refactoring, renaming, or unrequested comments.
+- If a task is ambiguous or speculative, ask or state the assumption before building a complex structure. 
+
 ## Installing packages
 
 The approved list is "Approved Packages" in `docs/project-overview.md`. Anything on it can be installed without asking. Anything else needs the user's approval first.

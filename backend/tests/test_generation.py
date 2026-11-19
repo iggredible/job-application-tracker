@@ -5,7 +5,13 @@ It touches no database: the tests give it an in-memory log sink.
 
 import pytest
 
-from app.ai.schemas import PostingAnalysisOutput, Requirement, RequirementCategory
+from app.ai.schemas import (
+    Experience,
+    PostingAnalysisOutput,
+    Requirement,
+    RequirementCategory,
+    TailoredResume,
+)
 from app.ai.sinks import InMemoryLogSink
 from app.ai.types import (
     AIAPIError,
@@ -15,7 +21,7 @@ from app.ai.types import (
     AIValidationError,
 )
 from app.models import AIFeature
-from app.services.generation import MAX_KEYWORDS, analyze
+from app.services.generation import MAX_KEYWORDS, analyze, tailor
 from tests.fakes import FakeAIClient
 
 
@@ -121,3 +127,50 @@ def test_a_failed_call_is_logged_and_raises_the_typed_error(error: type[AIError]
     assert len(sink.records) == 1
     assert sink.records[0].schema_valid is False
     assert sink.records[0].response_json is None
+
+
+# --- tailor() -----------------------------------------------------------------------------------
+
+TAILORED = TailoredResume(
+    summary="Backend lead.",
+    experiences=[
+        Experience(employer="Acme", title="Engineer", dates="2020 — 2024", bullets=["Built APIs"])
+    ],
+    skills=["Ruby on Rails"],
+)
+
+
+def test_tailor_makes_one_tailor_resume_call_and_logs_it() -> None:
+    sink = InMemoryLogSink()
+    client = FakeAIClient(sink, output=TAILORED)
+
+    result = tailor(
+        client,
+        base_resume="## Skills\nRuby on Rails",
+        posting_text="Build services.",
+        keywords=["ruby on rails"],
+        application_id=7,
+    )
+
+    assert result.output == TAILORED
+    assert result.ai_call_id == 1
+    assert len(client.calls) == 1
+    assert client.calls[0]["feature"] is AIFeature.TAILOR_RESUME
+    assert client.calls[0]["output_model"] is TailoredResume
+    record = sink.records[0]
+    assert (record.application_id, record.prompt_version) == (7, "v1")
+    content = record.request_json["messages"][0]["content"]
+    assert "<base_resume>\n## Skills\nRuby on Rails\n</base_resume>" in content
+    assert "<posting>\nBuild services.\n</posting>" in content
+    assert "- ruby on rails" in content
+
+
+def test_tailor_lets_a_failed_call_raise_after_it_is_logged() -> None:
+    sink = InMemoryLogSink()
+    client = FakeAIClient(sink, error=AIAPIError)
+
+    with pytest.raises(AIAPIError):
+        tailor(client, base_resume="x", posting_text="y", keywords=[], application_id=7)
+
+    assert len(sink.records) == 1
+    assert sink.records[0].schema_valid is False
