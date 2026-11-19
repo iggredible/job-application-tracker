@@ -88,7 +88,7 @@ Application stage is a state machine defined as data.
 
 | Action | Guard |
 | --- | --- |
-| Start tailoring | The application has an approved posting analysis |
+| Start tailoring | The application has an approved posting analysis, and a base resume exists. Two guards in `GUARDS["start_tailoring"]` (`require_approved_analysis`, then `require_base_resume`), each returning its own reason |
 | Saved → Applied | The request chooses a resume: the base resume, or an approved tailored resume for this application. Choosing the base resume saves a snapshot of it, and the snapshot becomes the submitted resume |
 
 `POST /applications/{id}/apply` is the only endpoint that performs Saved → Applied. It calls `change_stage()` with the chosen resume in `context` and creates the snapshot in the same transaction. The generic stage endpoint rejects that transition with 409.
@@ -144,7 +144,8 @@ sequenceDiagram
   - `scripts/ai_smoke.py`: a hand-run check of the real API against the test stub. It is not part of `make test`.
   - `ai/schemas.py`: the output models the LLM must return (`PostingAnalysisOutput`, `Requirement`, `RequirementCategory`). They carry no limits such as `maxItems`; code enforces those after parsing.
   - `ai/prompts/posting_analysis.py`: prompt `posting_analysis` v1. It wraps the posting in `<posting>` tags, tells the model to treat it as data and neutralises any `</posting>` inside the text.
-  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result. `tailor()` arrives with feature 8.
+  - `ai/prompts/tailor_resume.py`: prompt `tailor_resume` v1. Its user text wraps `<base_resume>`, `<posting>`, `<keywords>` and `<examples>`, and the examples block is always there, empty until feature 12. `ai/schemas.py` also holds `TailoredResume` and `Experience`.
+  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result, and `tailor()`, which makes one call and returns the validated `TailoredResume`.
 - The wrapper writes one row per call to a log sink, including failures (API error, refusal, truncated output, validation error). The app's sink writes `ai_calls` and commits in its own transaction, so the row survives a rollback in the caller. The eval passes an in-memory sink.
 - `AIClient` returns the validated output and the `ai_call_id`, so artifacts can store the foreign key.
 - The model name and API key come from environment variables and never reach the frontend.
@@ -176,6 +177,27 @@ One editable Markdown document, stored as the `resumes` row with no application 
 - Every Analyze inserts a new row and old rows are kept, because the AI metrics are calculated from them. An older draft is never auto-rejected.
 - The card shows the newest analysis, except that a rejected one never hides an older approved one. The rule lives in `get_for_display()`, and the frontend only renders what the API returns.
 - Approve and reject are allowed only from `draft`; anything else is a 409.
+
+## Tailored resume
+
+`POST /applications/{id}/tailored-resumes` makes one AI call and saves a `draft` row in `resumes`. `GET /applications/{id}/tailored-resumes` lists them, newest first.
+
+| Module | Role |
+| --- | --- |
+| `api/tailored_resumes.py` | The two routes. Only the POST depends on `get_ai_client`. Maps `TailoringBlocked` to 409 with the guard's reason, `TailoringInProgress` to 409, `AIError` to a generic 502 and a missing application to 404. |
+| `services/tailoring.py` | `TailoredResumeService`: `run()` (load the application, run the `start_tailoring` guards, take the lock, `tailor()`, render, save, commit; rolls back on any failure) and `list_for_application()`. |
+| `services/generation.py` | `tailor()`, the pure function that makes the call. It touches no database. |
+| `services/rendering.py` | `render_tailored_markdown(base, tailored)`, pure. It splits the base resume by headings, replaces the Summary, Experience and Skills sections and copies everything else through. |
+| `services/transitions.py` | The two guards, registered under `"start_tailoring"`. `GuardContext` carries `approved_analysis` and `base_resume`. |
+| `repositories/resumes.py` | `add_draft()` (flush only) and `list_tailored_for_application()`, which uses the "tailored" predicate (application set, `ai_call_id` not null). |
+| `repositories/posting_analyses.py` | `get_latest_approved()`, the query behind the analysis guard. |
+| `models/resume.py` | The new `ai_call_id`, `content_json` and `draft_markdown` columns, and an `ai_call` relationship that supplies the prompt version. |
+
+- One resume has exactly one AI call (`resumes.ai_call_id`). Tailoring again adds a row with its own call and leaves older drafts alone. A failed call is logged in `ai_calls` and saves no resume.
+- The guards run before the lock and before any AI call, so a refused request costs nothing. Tailoring uses the latest approved analysis, even when a newer draft analysis exists.
+- The renderer treats a section as running from a matching heading to the next heading of the same or higher level, ignores headings inside code fences, keeps the base section when the model gives nothing for it, and adds a missing section after the header in the order Summary, Experience, Skills.
+- Migration 0007 adds the columns and a trigger that rejects any change to `draft_markdown` after insert, so the original draft is preserved for the edit ratio.
+- The Tailored resume section (`TailoredResumeSection`) is Locked, Ready or Draft. Until the workflow steps come from the API (feature 11), it is locked unless the analysis the API returns for display is approved. The server guard stays authoritative.
 
 ## Frontend
 

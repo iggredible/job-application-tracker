@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import PostingAnalysis
+from app.models import PostingAnalysis, ReviewStatus
 
 
 class PostingAnalysisRepository:
@@ -37,6 +37,18 @@ class PostingAnalysisRepository:
             .order_by(PostingAnalysis.created_at.desc(), PostingAnalysis.id.desc())
         )
         return list(self._session.scalars(query))
+
+    def get_latest_approved(self, application_id: int) -> PostingAnalysis | None:
+        query = (
+            select(PostingAnalysis)
+            .where(
+                PostingAnalysis.application_id == application_id,
+                PostingAnalysis.status == ReviewStatus.APPROVED,
+            )
+            .order_by(PostingAnalysis.created_at.desc(), PostingAnalysis.id.desc())
+            .limit(1)
+        )
+        return self._session.scalar(query)
 
     def commit(self) -> None:
         self._session.commit()

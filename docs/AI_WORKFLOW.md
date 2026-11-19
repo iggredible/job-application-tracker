@@ -31,6 +31,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 07, keyword coverage.** My plan said `c++` would not match `c+++`. The first test run showed the word-boundary rule does match it, because `+` is not a word character, so I dropped that case and wrote the rule into the decisions instead of tightening it. Adding the coverage block made the card call two new endpoints, and that broke two older tests whose mock answered every unknown URL with an application; the mock now answers 404 like the real API. In the browser on real data I recounted 13 of 25 with a separate script and it matched. I also saw that the card shows the newest draft's keywords while coverage follows the latest approved analysis, as the spec says.
 
+**Feature 08, tailored resume draft.** The first draft's summary claimed "8 years of backend experience", a number worked out from the dates that the base resume never states, and the mocked tests could not see it; I left the prompt alone, because feature 9's number flag should catch it and the eval in feature 16 should check it before any prompt v2. The "dashed" box rendered solid, because the shadcn Card draws its outline with a ring, so `border-dashed` did nothing; it now swaps the ring for a real dashed border, checked by eye.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->

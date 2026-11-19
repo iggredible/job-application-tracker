@@ -5,8 +5,8 @@ service around each one gathers the inputs and saves the result, and the eval (f
 these directly with an in-memory log sink.
 """
 
-from app.ai.prompts import posting_analysis
-from app.ai.schemas import PostingAnalysisOutput, Requirement
+from app.ai.prompts import posting_analysis, tailor_resume
+from app.ai.schemas import PostingAnalysisOutput, Requirement, TailoredResume
 from app.ai.types import AIClient, AIResult
 from app.models import AIFeature
 
@@ -29,6 +29,28 @@ def analyze(
         application_id=application_id,
     )
     return AIResult(output=_normalize(result.output), ai_call_id=result.ai_call_id)
+
+
+def tailor(
+    client: AIClient,
+    *,
+    base_resume: str,
+    posting_text: str,
+    keywords: list[str],
+    application_id: int | None,
+) -> AIResult[TailoredResume]:
+    """Write a tailored resume from the base resume, the posting and the approved keywords.
+
+    One call, logged by the client. The output is the model's structure, validated by the
+    client; the Markdown is rendered from it by `render_tailored_markdown()`. A failed call
+    raises the client's `AIError`.
+    """
+    return client.generate(
+        feature=AIFeature.TAILOR_RESUME,
+        prompt=tailor_resume.render(base_resume, posting_text, keywords),
+        output_model=TailoredResume,
+        application_id=application_id,
+    )
 
 
 def _normalize(output: PostingAnalysisOutput) -> PostingAnalysisOutput:
