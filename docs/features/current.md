@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -29,6 +29,21 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Two-part design: a pure planner (`scripts/seed_plan.py`, all randomness from `random.Random(13)`, returns dataclasses) and a persistence step (`scripts/seed.py`, one transaction, repositories only). Static fictional content lives in `scripts/seed_content.py`. The planner needs no database, so the data shape is tuned and tested without one.
+- Dates are offsets from an injected `now`. A real run uses the current time, so stale applications are stale whenever you seed; tests pass a fixed `now` so two runs are identical. Absolute timestamps differ between real runs, the relative layout does not.
+- `--reset` has no extra guard (no confirmation prompt), as the spec says. It erases real data on whatever `DATABASE_URL` points at.
+- `make seed` runs the script; `make seed ARGS=--reset` passes the flag. No separate `seed-reset` target.
+- `MaintenanceRepository` (`repositories/maintenance.py`) holds `is_empty()` and `truncate_all()` (`TRUNCATE ... RESTART IDENTITY CASCADE` over `Base.metadata`), so the script has no SQL and ids restart after `--reset`.
+- Seed writes `stage`, `submitted_resume_id` and review statuses directly: the documented seed exception. `submitted_resume_id` is set after the resume insert (foreign-key cycle) and `updated_at` is set explicitly so `onupdate=now()` does not overwrite the backdate. The history test proves the data is consistent.
+- `draft_markdown`, `content_markdown` and `status` are inserted in one INSERT, so the `draft_markdown` trigger never fires.
+- Flags and edit ratios are real: flagged drafts inject an unsupported skill or number into the structured output, then run the real `check()`. Edits apply a seeded number of line changes to the draft so `edit_ratio` lands near the target.
+- Cost uses an explicit `seed` price passed to `estimate_cost()`; the real price table in `core/config.py` is not changed.
+- Include 2 failed `ai_calls` rows (1 analysis, 1 `v2` tailor) with no artifact, so the Insights Failed column is not all zeros. Not in the spec; approved at planning.
+- Flags follow the spec's "a few": about 5 of 12 `v1` drafts flagged, 1 to 2 in `v2`. This lands below the screenshot's 1.8 and 0.4 per draft but keeps `v1` higher. The spec wins over the screenshot.
+- `retrieved_example_ids` is `[]` on every seeded call. `request_json` is a minimal `{"system", "messages"}` because `v2` has no real prompt module.
+- "Response" means a later stage change other than Withdrawn (Feature 14's definition). Applied to Rejected counts.
+- Tests assert ranges, not exact numbers, taken from `insights.png`. No migration, no new dependency, no frontend change (so no Playwright step; run `make seed` and fetch `/applications` by hand instead).
 
 ## Notes
 
