@@ -10,6 +10,7 @@
    - Set `## Status` to Not started
    - Clear Goals, Decisions and Notes, keeping the placeholder comments
 6. Show the proposed commit message and wait for approval. Use a conventional prefix (`feat:`, `fix:`, `chore:`, `docs:`).
+6a. The commit message must be short: fewer than 20 words.
 7. Commit all changes on the feature branch.
 8. Push the feature branch. Do not merge it and do not push `main`: the user merges (usually as a pull request), because the session may run in a worktree where `main` is checked out elsewhere.
 9. Tell the user the commands to delete the feature branch locally and on the remote after the merge. Use `-D` for a squash merge.
