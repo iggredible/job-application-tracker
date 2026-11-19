@@ -47,6 +47,52 @@ export function mockApi(handler: ApiHandler) {
   return calls
 }
 
+const ALL_STAGES = [
+  'saved',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+  'rejected',
+  'withdrawn',
+]
+
+type Sample = Record<string, unknown> & { stage?: unknown; is_stale?: unknown }
+
+/** The body of GET /applications: counts and the stale count are worked out from the items. */
+export function sampleList(items: Sample[], overrides: Record<string, unknown> = {}) {
+  const counts = Object.fromEntries(ALL_STAGES.map((s) => [s, 0]))
+  for (const item of items) counts[String(item.stage)] += 1
+  return {
+    items,
+    counts_by_stage: counts,
+    stale_count: items.filter((i) => i.is_stale).length,
+    ...overrides,
+  }
+}
+
+export function sampleEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    application_id: 1,
+    type: 'stage_change',
+    from_stage: null,
+    to_stage: 'saved',
+    note: null,
+    created_at: '2026-11-12T12:00:00Z',
+    ...overrides,
+  }
+}
+
+/** Answers the detail page's two requests: the application and its timeline. */
+export function detailHandler(
+  application: Record<string, unknown> = sampleApplication(),
+  timeline: Record<string, unknown>[] = [sampleEvent()],
+): ApiHandler {
+  return ({ path }) => ({ body: path.endsWith('/timeline') ? timeline : application })
+}
+
 export function sampleApplication(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
@@ -58,6 +104,10 @@ export function sampleApplication(overrides: Record<string, unknown> = {}) {
     posting_text: 'Build services that book, track and settle every load.',
     created_at: '2026-11-12T12:00:00Z',
     updated_at: '2026-11-12T12:00:00Z',
+    allowed_next_stages: ['applied', 'withdrawn'],
+    last_activity_at: '2026-11-12T12:00:00Z',
+    is_stale: false,
+    idle_days: 0,
     ...overrides,
   }
 }

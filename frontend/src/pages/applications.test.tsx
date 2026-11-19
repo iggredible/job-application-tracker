@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mockApi, renderAt, sampleApplication } from '@/test-utils'
+import { detailHandler, mockApi, renderAt, sampleApplication, sampleList } from '@/test-utils'
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -31,8 +31,8 @@ const second = sampleApplication({
 })
 
 describe('applications list', () => {
-  it('shows the count and a row per application', async () => {
-    mockApi(() => ({ body: [second, sampleApplication()] }))
+  it('shows the total count and a row per application', async () => {
+    mockApi(() => ({ body: sampleList([second, sampleApplication()]) }))
     renderAt('/')
 
     expect(await screen.findByText('2 applications')).toBeTruthy()
@@ -42,14 +42,14 @@ describe('applications list', () => {
     expect(within(row).getByText('Senior Backend Engineer')).toBeTruthy()
     expect(within(row).getByText('LinkedIn')).toBeTruthy()
     expect(within(row).getByText('Saved')).toBeTruthy()
-    expect(within(row).getByText('Nov 12')).toBeTruthy()
+    expect(within(row).getByText('Nov 12')).toBeTruthy() // last activity
     const otherRow = screen.getByRole('link', { name: 'Larkspur Health' }).closest('tr')!
     expect(within(otherRow).getByText('Interviewing')).toBeTruthy()
     expect(within(otherRow).getByText('Referral')).toBeTruthy()
   })
 
   it('shows an empty message when there are no applications', async () => {
-    mockApi(() => ({ body: [] }))
+    mockApi(() => ({ body: sampleList([]) }))
     renderAt('/')
 
     expect(await screen.findByText('0 applications')).toBeTruthy()
@@ -57,7 +57,7 @@ describe('applications list', () => {
   })
 
   it('has no edit action', async () => {
-    mockApi(() => ({ body: [sampleApplication()] }))
+    mockApi(() => ({ body: sampleList([sampleApplication()]) }))
     renderAt('/')
 
     await screen.findByText('1 application')
@@ -67,7 +67,7 @@ describe('applications list', () => {
 
 describe('new application dialog', () => {
   it('opens with the five fields and the source options', async () => {
-    mockApi(() => ({ body: [] }))
+    mockApi(() => ({ body: sampleList([]) }))
     renderAt('/')
 
     fireEvent.click(await screen.findByRole('button', { name: /new application/i }))
@@ -94,7 +94,7 @@ describe('new application dialog', () => {
     const calls = mockApi(({ method, path }) => {
       if (method === 'POST') return { status: 201, body: created }
       if (path === '/api/applications/5') return { body: created }
-      return { body: [] }
+      return { body: sampleList([]) }
     })
     const { router } = renderAt('/')
 
@@ -135,7 +135,7 @@ describe('new application dialog', () => {
   })
 
   it('does not save until a source is chosen', async () => {
-    const calls = mockApi(() => ({ body: [] }))
+    const calls = mockApi(() => ({ body: sampleList([]) }))
     renderAt('/')
 
     fireEvent.click(await screen.findByRole('button', { name: /new application/i }))
@@ -152,7 +152,9 @@ describe('new application dialog', () => {
 
   it('a failed save toasts the error and keeps the dialog open', async () => {
     mockApi(({ method }) =>
-      method === 'POST' ? { status: 500, body: { detail: 'database is down' } } : { body: [] },
+      method === 'POST'
+        ? { status: 500, body: { detail: 'database is down' } }
+        : { body: sampleList([]) },
     )
     const { router } = renderAt('/')
 
@@ -173,7 +175,7 @@ describe('new application dialog', () => {
 
 describe('application detail', () => {
   it('shows company, role, source, added date and stage badge', async () => {
-    mockApi(() => ({ body: sampleApplication() }))
+    mockApi(detailHandler())
     renderAt('/applications/1')
 
     expect(await screen.findByRole('heading', { name: 'Northwind Freight' })).toBeTruthy()
@@ -185,7 +187,7 @@ describe('application detail', () => {
   })
 
   it('shows an Open original link only when a posting URL exists', async () => {
-    mockApi(() => ({ body: sampleApplication() }))
+    mockApi(detailHandler())
     renderAt('/applications/1')
 
     const link = await screen.findByRole('link', { name: 'Open original' })
@@ -194,7 +196,7 @@ describe('application detail', () => {
     expect(link.getAttribute('rel')).toContain('noopener')
 
     cleanup()
-    mockApi(() => ({ body: sampleApplication({ posting_url: null }) }))
+    mockApi(detailHandler(sampleApplication({ posting_url: null })))
     renderAt('/applications/1')
     await screen.findByRole('heading', { name: 'Northwind Freight' })
     expect(screen.queryByRole('link', { name: 'Open original' })).toBeNull()
@@ -209,12 +211,12 @@ describe('application detail', () => {
 
   it('Edit opens the dialog pre-filled and saving sends only the five editable fields', async () => {
     let current = sampleApplication()
-    const calls = mockApi(({ method, body }) => {
+    const calls = mockApi(({ method, path, body }) => {
       if (method === 'PATCH') {
         current = { ...current, ...(body as object) }
         return { body: current }
       }
-      return { body: current }
+      return detailHandler(current)({ method, path, body })
     })
     renderAt('/applications/1')
 
@@ -248,8 +250,8 @@ describe('application detail', () => {
   })
 
   it('a failed edit toasts a readable error and keeps the dialog open', async () => {
-    mockApi(({ method }) =>
-      method === 'PATCH'
+    mockApi((req) =>
+      req.method === 'PATCH'
         ? {
             status: 422,
             body: {
@@ -258,7 +260,7 @@ describe('application detail', () => {
               ],
             },
           }
-        : { body: sampleApplication() },
+        : detailHandler()(req),
     )
     renderAt('/applications/1')
 

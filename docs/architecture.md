@@ -36,7 +36,7 @@ Request flow: `api/ -> services/ -> repositories/ -> models/`.
 | `repositories/` | All database queries | Make decisions |
 | `models/` | SQLAlchemy table definitions | Contain logic |
 | `ai/` | Anthropic client wrapper, prompt templates, output schemas | Be called except through the `AIClient` interface |
-| `core/` | Config from environment variables, DB session, logging, middleware | Know about the domain |
+| `core/` | Config from environment variables, DB session, logging, middleware, the clock (`clock.py`, injected into services so tests control "now") | Know about the domain |
 
 ## Deterministic and non-deterministic parts
 

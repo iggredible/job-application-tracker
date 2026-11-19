@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useParams } from 'react-router'
 
 import { ApplicationDialog } from '@/components/ApplicationDialog'
+import { ChangeStageMenu } from '@/components/ChangeStageMenu'
 import { StageBadge } from '@/components/StageBadge'
+import { Timeline } from '@/components/Timeline'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useApplication } from '@/hooks/useApplications'
 import { ApiError } from '@/lib/api'
-import { formatAdded, sourceLabel } from '@/lib/applications'
+import { formatDay, sourceLabel } from '@/lib/applications'
 
 export function ApplicationDetailPage() {
   const { id } = useParams()
@@ -34,12 +36,15 @@ export function ApplicationDetailPage() {
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             {application.role} · Source: {sourceLabel(application.source)} · Added{' '}
-            {formatAdded(application.created_at)}
+            {formatDay(application.created_at)}
           </p>
         </div>
-        <Button variant="outline" onClick={() => setEditOpen(true)}>
-          Edit
-        </Button>
+        <div className="flex items-center gap-2">
+          <ChangeStageMenu application={application} />
+          <Button variant="outline" onClick={() => setEditOpen(true)}>
+            Edit
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -62,6 +67,8 @@ export function ApplicationDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Timeline applicationId={application.id} />
 
       <ApplicationDialog open={editOpen} onOpenChange={setEditOpen} application={application} />
     </div>

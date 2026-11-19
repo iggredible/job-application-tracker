@@ -1,12 +1,12 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mockApi, renderAt } from './test-utils'
+import { mockApi, renderAt, sampleList } from './test-utils'
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }))
 
 beforeEach(() => {
-  mockApi(() => ({ body: [] }))
+  mockApi(() => ({ body: sampleList([]) }))
 })
 
 // Vitest globals are off, so Testing Library does not clean up between tests on its own.

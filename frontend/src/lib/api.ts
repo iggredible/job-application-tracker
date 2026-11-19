@@ -11,6 +11,11 @@ export class ApiError extends Error {
 function messageFrom(body: unknown, fallback: string): string {
   const detail = (body as { detail?: unknown } | null)?.detail
   if (typeof detail === 'string') return detail
+  // A refused stage change: { message, allowed_next_stages }.
+  if (typeof detail === 'object' && detail !== null && !Array.isArray(detail)) {
+    const message = (detail as { message?: unknown }).message
+    if (typeof message === 'string') return message
+  }
   if (Array.isArray(detail)) {
     const first = detail[0] as { loc?: unknown[]; msg?: string } | undefined
     if (first?.msg) {
