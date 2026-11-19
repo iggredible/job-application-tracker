@@ -25,6 +25,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 04, base resume.** Two first saves racing would have made two rows, or an error. The unique partial index stops that, and the repository turns the violation into `BaseResumeExists` so the service retries as a replace. Blank text is rejected with 422, because a blank base resume would make tailoring meaningless.
 
+**Feature 05, AI foundation.** The plan used the SDK's `messages.parse()`, which checks the reply against the schema inside the call. A reply cut off mid-way would fail there as a generic validation error, before I could see that it was cut off. Claude switched to `messages.create()`, which checks why the call stopped first and validates the text after. The same read showed the SDK sends requests through `httpx2`, so the planned no-network guard on `httpx` would have blocked nothing; a test now proves the real SDK is blocked. I asked for a smoke script that makes three real calls, and it found what the stub missed: the model can return a `thinking` block before the text, so the stub and two tests now cover it. I chose not to guard a `max_tokens` limit that a one-page resume can't reach.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->
@@ -44,3 +46,5 @@ Known limits accepted at the doc review (revisit after the MVP):
 - The tailored vs base response rate is confounded, since tailoring may go to better-fit jobs.
 - Full-text retrieval drops punctuation (`c++` becomes `c`) and does not stem synonyms.
 - Keyword coverage matches exact terms only, so `k8s` and `kubernetes` count as different keywords.
+- A call with `max_tokens` above about 21,333 makes the Anthropic SDK raise a plain `ValueError` before anything is sent, so no `ai_calls` row is written and no `AIError` is raised. The default is 8192 and a one-page resume is far below it. Revisit in feature 8 if tailoring needs a higher limit (reasoning tokens count against `max_tokens`).
+- The raw model text is not stored: a successful row logs the validated output, and a validation failure keeps only Pydantic's short excerpt in `ai_calls.error`. Revisit in feature 6, when real prompts produce real failures.

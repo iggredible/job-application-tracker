@@ -124,7 +124,15 @@ sequenceDiagram
   S->>S: save resume as draft with flags
 ```
 
-- Prompts are versioned modules in `ai/prompts/`. Each exposes a `VERSION` and a `render()` function.
+- Prompts are versioned modules in `ai/prompts/`. Each exposes a `VERSION` and a `render()` function that returns a `RenderedPrompt` (`PromptModule` is the Protocol).
+- Modules, as built:
+  - `ai/types.py`: the `AIClient` and `LogSink` Protocols, `AICallRecord`, `AIResult`, and the errors (`AIAPIError`, `AIRefusalError`, `AITruncatedError`, `AIValidationError`, each carrying the `ai_call_id`; `AIConfigurationError` is separate because no call was made).
+  - `ai/client.py`: `AnthropicAIClient.generate()`, the only code that calls Anthropic. It uses `messages.create` with a JSON schema from the Pydantic model, checks the stop reason, then validates the text itself. It never sets a temperature.
+  - `ai/sinks.py`: `DatabaseLogSink` (own session and commit, through `repositories/ai_calls.py`) and `InMemoryLogSink`.
+  - `ai/cost.py`: `estimate_cost()` over the `MODEL_PRICES` table in `core/config.py`.
+  - `api/ai.py`: `get_ai_client()`, the FastAPI provider that tests override with `FakeAIClient` (`tests/fakes.py`).
+  - `models/ai_call.py` and `repositories/ai_calls.py`: the table, and a repository with `add` and `get` only.
+  - `scripts/ai_smoke.py`: a hand-run check of the real API against the test stub. It is not part of `make test`.
 - The wrapper writes one row per call to a log sink, including failures (API error, refusal, truncated output, validation error). The app's sink writes `ai_calls` and commits in its own transaction, so the row survives a rollback in the caller. The eval passes an in-memory sink.
 - `AIClient` returns the validated output and the `ai_call_id`, so artifacts can store the foreign key.
 - The model name and API key come from environment variables and never reach the frontend.
