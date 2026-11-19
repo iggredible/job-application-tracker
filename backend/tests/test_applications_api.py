@@ -195,12 +195,13 @@ def test_endpoints_appear_in_openapi(client: TestClient) -> None:
     assert set(paths["/applications/{application_id}"]) == {"get", "patch"}
 
 
-def test_applications_table_has_no_posting_tsv_or_submitted_resume_id(test_engine: Engine) -> None:
+def test_applications_table_has_no_posting_tsv_column(test_engine: Engine) -> None:
+    # submitted_resume_id arrived with feature 11 (migration 0009), nothing else.
     columns = {c["name"] for c in inspect(test_engine).get_columns("applications")}
 
     assert columns == {
         "id", "company", "role", "posting_url", "posting_text",
-        "source", "stage", "created_at", "updated_at",
+        "source", "stage", "created_at", "updated_at", "submitted_resume_id",
     }  # fmt: skip
 
 

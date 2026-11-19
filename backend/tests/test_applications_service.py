@@ -2,13 +2,20 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.repositories.applications import ApplicationRepository
+from app.repositories.posting_analyses import PostingAnalysisRepository
+from app.repositories.resumes import ResumeRepository
 from app.repositories.timeline import TimelineRepository
 from app.schemas.application import ApplicationCreate, ApplicationUpdate
 from app.services.applications import ApplicationNotFound, ApplicationService
 
 
 def make_service(session: Session) -> ApplicationService:
-    return ApplicationService(ApplicationRepository(session), TimelineRepository(session))
+    return ApplicationService(
+        ApplicationRepository(session),
+        TimelineRepository(session),
+        ResumeRepository(session),
+        PostingAnalysisRepository(session),
+    )
 
 
 def new_payload(**overrides) -> ApplicationCreate:

@@ -24,20 +24,26 @@ export function ChangeStageMenu({ application }: { application: Application }) {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={options.length === 0 || changeStage.isPending}>
-          Change stage
-          <ChevronDown aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {options.map((stage) => (
-          <DropdownMenuItem key={stage} onSelect={() => choose(stage)}>
-            {stageLabel(stage)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      {/* Where a move happens elsewhere, the API says so. */}
+      {application.stage_change_hint && (
+        <span className="text-sm text-muted-foreground">{application.stage_change_hint}</span>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" disabled={options.length === 0 || changeStage.isPending}>
+            Change stage
+            <ChevronDown aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {options.map((stage) => (
+            <DropdownMenuItem key={stage} onSelect={() => choose(stage)}>
+              {stageLabel(stage)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }

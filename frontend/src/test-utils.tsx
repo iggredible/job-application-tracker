@@ -111,6 +111,7 @@ export function detailHandler(
   application: Record<string, unknown> = sampleApplication(),
   timeline: Record<string, unknown>[] = [sampleEvent()],
   analysis: Record<string, unknown> | null = null,
+  options: Record<string, unknown>[] = [],
 ): ApiHandler {
   return ({ path }) => ({
     body: path.endsWith('/timeline')
@@ -119,8 +120,39 @@ export function detailHandler(
         ? analysis
         : path.endsWith('/tailored-resumes')
           ? []
-          : application,
+          : path.endsWith('/submittable-resumes')
+            ? options
+            : application,
   })
+}
+
+type StepSpec = [status: string, text: string]
+
+/** The three steps the API sends. Each override is [status, text]; the default is a new
+ * application with a base resume: analysis current, tailoring locked, apply available. */
+export function sampleSteps(
+  analysis: StepSpec = ['current', 'Analyze the posting'],
+  tailored: StepSpec = ['locked', 'Locked until the analysis is approved'],
+  apply: StepSpec = ['available', 'Pick the resume you sent'],
+) {
+  return [
+    { key: 'analysis', status: analysis[0], text: analysis[1] },
+    { key: 'tailored', status: tailored[0], text: tailored[1] },
+    { key: 'apply', status: apply[0], text: apply[1] },
+  ]
+}
+
+/** One option of GET /applications/{id}/submittable-resumes. */
+export function sampleOption(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 7,
+    kind: 'base',
+    status: 'approved',
+    date: '2026-11-12T12:00:00Z',
+    submittable: true,
+    reason: null,
+    ...overrides,
+  }
 }
 
 export function sampleApplication(overrides: Record<string, unknown> = {}) {
@@ -134,10 +166,16 @@ export function sampleApplication(overrides: Record<string, unknown> = {}) {
     posting_text: 'Build services that book, track and settle every load.',
     created_at: '2026-11-12T12:00:00Z',
     updated_at: '2026-11-12T12:00:00Z',
-    allowed_next_stages: ['applied', 'withdrawn'],
+    // A Saved application: Applied happens in the Mark as applied section, so the API does not
+    // offer it here and says where to go instead.
+    allowed_next_stages: ['withdrawn'],
     last_activity_at: '2026-11-12T12:00:00Z',
     is_stale: false,
     idle_days: 0,
+    submitted_resume: null,
+    applied_at: null,
+    stage_change_hint: 'Apply in step 3 below',
+    steps: sampleSteps(),
     ...overrides,
   }
 }

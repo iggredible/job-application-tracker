@@ -52,7 +52,7 @@ Request flow: `api/ -> services/ -> repositories/ -> models/`.
 | Guardrail check | Deterministic | `services/guardrail.py` |
 | Approve or reject | Human | `services/review.py` records the decision; `services/resume_review.py` applies it to a tailored resume |
 | Edit a draft, outcome, edit ratio, which resume is displayed | Deterministic | `services/resume_review.py` |
-| Workflow step status | Deterministic | `services/workflow.py` |
+| Workflow step status | Deterministic | `services/submission.py` |
 | Stale rule | Deterministic | `services/staleness.py` |
 | Metrics | Deterministic | `services/metrics.py` |
 
@@ -96,7 +96,7 @@ Separately, the eval script measures how often a prompt version produces flags, 
 Application stage is a state machine defined as data.
 
 - `services/transitions.py` holds the allowed transitions and a guard table keyed by action. An action is a stage transition (for example Saved → Applied) or another gated step (Start tailoring). A guard is a function `(context) -> None | GuardFailure`, where `context` carries the application, its related records and any extra input, such as the chosen resume.
-- `ApplicationService.change_stage()` is the only code path that writes `applications.stage`. It validates the transition, runs the guards, updates the stage and inserts a timeline event in one transaction. The service takes a clock, so tests control "now". Two documented exceptions: creating an application (the column default is `saved`, and the service writes the initial event) and the seed script.
+- `ApplicationService.change_stage()` is the only code path that writes `applications.stage`. It locks the application row (`ApplicationRepository.get_for_update()`), validates the transition, runs the guards, runs the transition's effect if it has one, updates the stage and inserts a timeline event in one transaction. Any failure rolls back, which also releases the lock. The service takes a clock, so tests control "now". Two documented exceptions: creating an application (the column default is `saved`, and the service writes the initial event) and the seed script.
 - Guards read the state of other entities. This is how separate lifecycles interlock:
 
 | Action | Guard |
@@ -104,7 +104,7 @@ Application stage is a state machine defined as data.
 | Start tailoring | The application has an approved posting analysis, and a base resume exists. Two guards in `GUARDS["start_tailoring"]` (`require_approved_analysis`, then `require_base_resume`), each returning its own reason |
 | Saved → Applied | The request chooses a resume: the base resume, or an approved tailored resume for this application. Choosing the base resume saves a snapshot of it, and the snapshot becomes the submitted resume |
 
-`POST /applications/{id}/apply` is the only endpoint that performs Saved → Applied. It calls `change_stage()` with the chosen resume in `context` and creates the snapshot in the same transaction. The generic stage endpoint rejects that transition with 409.
+`POST /applications/{id}/apply` is the only endpoint that performs Saved → Applied. It calls `ApplicationService.apply()`, which calls `change_stage()` with the choice and resume id in `context`; the snapshot is created in the same transaction (see Marking an application as applied). The generic stage endpoint rejects that transition with 409, because it passes no choice and the first guard refuses.
 
 Analyses and resumes have their own small lifecycle: `draft → approved` or `draft → rejected`. A draft with a newer draft for the same application and feature is shown as `superseded` (derived, never stored and never auto-rejected).
 
@@ -125,7 +125,7 @@ At most one step is current. An application withdrawn from Saved shows no applie
 - **Derived values are never stored.** Keyword coverage, AI outcome, edit ratio, guardrail flag count, current guardrail flags and every metric are calculated on request from stored rows. `guardrail_flags` itself is the stored snapshot of the flags as generated.
 - **Original drafts are preserved.** `resumes.draft_markdown` never changes after generation, so the amount of user editing can be measured against `content_markdown`.
 - **What was sent is preserved.** Marking an application as applied with the base resume stores an immutable snapshot of it. Editing the base resume later never changes the record of what was sent.
-- **Snapshots are not tailored resumes.** A snapshot is a `resumes` row with `application_id` set and `ai_call_id` null. Repositories expose "tailored" and "snapshot" as named predicates, and retrieval and metrics use them.
+- **Snapshots are not tailored resumes.** A snapshot is a `resumes` row with `application_id` set and `ai_call_id` null. A tailored resume has both set. The resume repository selects tailored resumes with that condition (`list_tailored_for_application()`, `get_tailored_for_update()`, `tailored_statuses_by_application()`), and retrieval and metrics must do the same.
 
 ## AI call path
 
@@ -201,7 +201,7 @@ One editable Markdown document, stored as the `resumes` row with no application 
 | `services/tailoring.py` | `TailoredResumeService`: `run()` (load the application, run the `start_tailoring` guards, take the lock, `tailor()`, render, `check()`, save with the flags, commit; rolls back on any failure) and `list_for_application()`. Both return `TailoredDraft(resume, flags)`, where `flags` are the current flags. |
 | `services/generation.py` | `tailor()`, the pure function that makes the call. It touches no database. |
 | `services/rendering.py` | `render_tailored_markdown(base, tailored)`, pure. It splits the base resume by headings, replaces the Summary, Experience and Skills sections and copies everything else through. |
-| `services/transitions.py` | The two guards, registered under `"start_tailoring"`. `GuardContext` carries `approved_analysis` and `base_resume`. |
+| `services/transitions.py` | The two guards, registered under `"start_tailoring"`. `GuardContext` carries `approved_analysis`, `base_resume` and `chosen_resume`. Feature 11 registers two more under `(SAVED, APPLIED)`. |
 | `repositories/resumes.py` | `add_draft()` (flush only) and `list_tailored_for_application()`, which uses the "tailored" predicate (application set, `ai_call_id` not null). |
 | `repositories/posting_analyses.py` | `get_latest_approved()`, the query behind the analysis guard. |
 | `models/resume.py` | The new `ai_call_id`, `content_json`, `draft_markdown` and `guardrail_flags` columns, and an `ai_call` relationship that supplies the prompt version. |
@@ -210,7 +210,24 @@ One editable Markdown document, stored as the `resumes` row with no application 
 - The guards run before the lock and before any AI call, so a refused request costs nothing. Tailoring uses the latest approved analysis, even when a newer draft analysis exists.
 - The renderer treats a section as running from a matching heading to the next heading of the same or higher level, ignores headings inside code fences, keeps the base section when the model gives nothing for it, and adds a missing section after the header in the order Summary, Experience, Skills.
 - Migration 0007 adds the columns and a trigger that rejects any change to `draft_markdown` after insert, so the original draft is preserved for the edit ratio. Migration 0008 adds `guardrail_flags` (see Guardrail check).
-- The Tailored resume section (`TailoredResumeSection`) is Locked, Ready or Draft. Until the workflow steps come from the API (feature 11), it is locked unless the analysis the API returns for display is approved. The server guard stays authoritative.
+- The Tailored resume section (`TailoredResumeSection`) is Locked, Ready or Draft. It is locked unless the analysis the API returns for display is approved. The workflow steps now come from the API too (step 2's status), but this section still reads the analysis itself; switching it to the step status is left for later. The server guard stays authoritative.
+
+## Marking an application as applied
+
+Plain code, no AI. `POST /applications/{id}/apply` takes `{"choice": "base"}` or `{"choice": "tailored", "resume_id": ...}`. `GET /applications/{id}/submittable-resumes` lists the options. Migration 0009 adds `applications.submitted_resume_id` (a foreign key to `resumes`) and nothing else: the applied date is read from the Saved → Applied timeline event, and step status is calculated.
+
+| Module | Role |
+| --- | --- |
+| `api/applications.py` | The two routes. `apply` maps `ApplicationNotFound` to 404 and `InvalidTransition` and `GuardFailed` to 409 with a message. `_read()` adds `submitted_resume`, `applied_at`, `stage_change_hint` and `steps` to every application response. |
+| `services/transitions.py` | `GUARDS[(SAVED, APPLIED)] = [require_choice, require_submittable_resume]`, each returning its own reason. `DEDICATED_ACTIONS` marks transitions that have their own action and holds the hint ("Apply in step 3 below"). `allowed_next_for_user()` is `allowed_next()` without them; `stage_change_hint()` reads the hint. The transition itself stays in `TRANSITIONS`. |
+| `services/submission.py` | Pure, no database: `workflow_steps()` (the three steps, each with a status and one line of text), `unsubmittable_reason()` (the single rule for whether a tailored resume can be sent, shared by the guard and the options), `submittable_options()`, and the `ResumeKind` and `SubmittedResume` types. |
+| `services/applications.py` | `apply()`, `submittable_resumes()`, and `_EFFECTS`, a table of what a transition does besides moving the stage. `_EFFECTS[(SAVED, APPLIED)]` is `_record_submitted_resume`, run after the guards pass and before the commit: it saves the snapshot (base) or points at the approved tailored resume. `_related()` reads analyses, tailored resumes, applied dates and submitted resumes in a few batch queries, so the list costs the same as one application. |
+| `repositories/applications.py` | `get_for_update()` and `set_submitted_resume()`, the only place that writes the column. |
+| `repositories/resumes.py` | `add_snapshot()`, `get_many()` and `tailored_statuses_by_application()`. A snapshot is never counted as tailored. |
+
+- The snapshot copies the base resume's `content_markdown` into a new row (`application_id` set, `ai_call_id` null, status `approved`, `draft_markdown` null). Sending a tailored resume creates no row.
+- An architecture test checks that only `ApplicationRepository.set_submitted_resume()` writes `submitted_resume_id`, and that only the apply effect calls it.
+- Frontend: `WorkflowSteps` draws the strip, and `MarkAsAppliedSection` picks one of its four states from step 3's status. `useSubmission.ts` holds `useApply()`, `useSubmittableResumes()` (only while the section is open) and `refreshSteps()`, which the analysis, tailored-resume and base-resume mutations call.
 
 ## Guardrail check
 

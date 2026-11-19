@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
-from app.models import EventType, Source, Stage
+from app.models import EventType, ReviewStatus, Source, Stage
+from app.services.submission import ResumeKind, StepKey, StepStatus
 
 # Whitespace is trimmed and a blank value is rejected.
 RequiredText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -77,6 +78,22 @@ class ApplicationFields(BaseModel):
     updated_at: datetime
 
 
+class SubmittedResumeRead(BaseModel):
+    """The resume the application sent: a snapshot of the base resume, or a tailored resume."""
+
+    id: int
+    kind: ResumeKind
+    created_at: datetime
+
+
+class WorkflowStepRead(BaseModel):
+    """One of the three steps on the detail page. The status and the line are the API's."""
+
+    key: StepKey
+    status: StepStatus
+    text: str
+
+
 class ApplicationRead(ApplicationFields):
     """The stored columns plus the values calculated on request."""
 
@@ -84,6 +101,12 @@ class ApplicationRead(ApplicationFields):
     last_activity_at: datetime
     is_stale: bool
     idle_days: int
+    submitted_resume: SubmittedResumeRead | None
+    # When the application moved to Applied, from its timeline. Null before that.
+    applied_at: datetime | None
+    # Shown beside Change stage when a move from this stage happens elsewhere, else null.
+    stage_change_hint: str | None
+    steps: list[WorkflowStepRead]
 
 
 class ApplicationList(BaseModel):
@@ -98,6 +121,29 @@ class StageChange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     to_stage: Stage
+
+
+class ApplyRequest(BaseModel):
+    """Which resume was sent. `choice` is optional here so a missing choice reaches the guard and
+    is refused with a 409 and a message. `resume_id` is the tailored resume, for "tailored"."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    choice: Literal["base", "tailored"] | None = None
+    resume_id: int | None = None
+
+
+class SubmittableResumeRead(BaseModel):
+    """An option for "Which resume did you send?". A resume that cannot be sent is still listed,
+    with the reason. `date` is when the base resume was last saved, or the tailored resume was
+    decided (or made, while it is a draft)."""
+
+    id: int
+    kind: ResumeKind
+    status: ReviewStatus
+    date: datetime
+    submittable: bool
+    reason: str | None
 
 
 class NoteCreate(BaseModel):

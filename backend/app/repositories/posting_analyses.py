@@ -38,6 +38,21 @@ class PostingAnalysisRepository:
         )
         return list(self._session.scalars(query))
 
+    def statuses_by_application(
+        self, application_id: int | None = None
+    ) -> dict[int, list[ReviewStatus]]:
+        """The statuses of the analyses, newest first, by application: every application, or just
+        `application_id`."""
+        query = select(PostingAnalysis.application_id, PostingAnalysis.status).order_by(
+            PostingAnalysis.created_at.desc(), PostingAnalysis.id.desc()
+        )
+        if application_id is not None:
+            query = query.where(PostingAnalysis.application_id == application_id)
+        statuses: dict[int, list[ReviewStatus]] = {}
+        for owner, status in self._session.execute(query):
+            statuses.setdefault(owner, []).append(status)
+        return statuses
+
     def get_latest_approved(self, application_id: int) -> PostingAnalysis | None:
         query = (
             select(PostingAnalysis)

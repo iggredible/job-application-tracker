@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { coverageKey, resumeCoverageKey } from '@/hooks/useCoverage'
+import { refreshSteps } from '@/hooks/useSubmission'
 import { api, ApiError } from '@/lib/api'
 import type { SavedResume, TailoredResume } from '@/lib/tailoredResumes'
 
@@ -27,8 +28,13 @@ export function useTailorResume(applicationId: number) {
         method: 'POST',
         body: undefined,
       }),
-    // Returned, so the buttons stay disabled until the section shows the new draft.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tailoredKey(applicationId) }),
+    // Returned, so the buttons stay disabled until the section shows the new draft. A new draft
+    // also changes the second step's line and the options for the resume that was sent.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: tailoredKey(applicationId) }),
+        refreshSteps(queryClient, applicationId),
+      ]),
   })
 }
 
@@ -62,6 +68,8 @@ export function useReviewResume(applicationId: number) {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: tailoredKey(applicationId) }),
       queryClient.invalidateQueries({ queryKey: coverageKey }),
+      // Approving makes a resume sendable and finishes the second step.
+      refreshSteps(queryClient, applicationId),
     ])
   return useMutation({
     mutationFn: async ({

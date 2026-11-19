@@ -31,7 +31,12 @@ def make_service(session: Session) -> CoverageService:
 
 
 def make_application(session: Session, company: str = "Northwind Freight") -> int:
-    service = ApplicationService(ApplicationRepository(session), TimelineRepository(session))
+    service = ApplicationService(
+        ApplicationRepository(session),
+        TimelineRepository(session),
+        ResumeRepository(session),
+        PostingAnalysisRepository(session),
+    )
     created = service.create(
         ApplicationCreate(
             company=company,

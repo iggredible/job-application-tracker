@@ -16,7 +16,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useApplications } from '@/hooks/useApplications'
-import { formatDay, isStage, sourceLabel, stageLabel, STAGES } from '@/lib/applications'
+import {
+  formatDay,
+  isStage,
+  resumeSentLabel,
+  sourceLabel,
+  stageLabel,
+  STAGES,
+} from '@/lib/applications'
 
 export function ApplicationsPage() {
   // The selected stage lives in the URL, so Back from a detail page keeps the filter.
@@ -87,13 +94,14 @@ export function ApplicationsPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Stage</TableHead>
+                <TableHead>Resume sent</TableHead>
                 <TableHead>Last activity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
                     {stage ? 'No applications in this stage.' : 'No applications yet.'}
                   </TableCell>
                 </TableRow>
@@ -110,6 +118,7 @@ export function ApplicationsPage() {
                   <TableCell>
                     <StageBadge stage={application.stage} />
                   </TableCell>
+                  <TableCell>{resumeSentLabel(application.submitted_resume)}</TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-2">
                       {formatDay(application.last_activity_at)}

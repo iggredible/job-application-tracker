@@ -28,8 +28,12 @@ export function useSaveResume() {
       api<Resume>('/resume', { method: 'PUT', body: { content_markdown: contentMarkdown } }),
     onSuccess: (resume) => {
       queryClient.setQueryData(resumeKey, resume)
-      // The base resume's text is what coverage is measured against.
-      return queryClient.invalidateQueries({ queryKey: coverageKey })
+      // The base resume's text is what coverage is measured against, and saving the first one
+      // unlocks the Mark as applied step of every application.
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: coverageKey }),
+        queryClient.invalidateQueries({ queryKey: ['applications'] }),
+      ])
     },
   })
 }
