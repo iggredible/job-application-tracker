@@ -22,6 +22,7 @@ from app.ai.types import (
 )
 from app.models import AIFeature
 from app.services.generation import MAX_KEYWORDS, analyze, tailor
+from app.services.retrieval import RetrievedExample
 from tests.fakes import FakeAIClient
 
 
@@ -163,6 +164,52 @@ def test_tailor_makes_one_tailor_resume_call_and_logs_it() -> None:
     assert "<base_resume>\n## Skills\nRuby on Rails\n</base_resume>" in content
     assert "<posting>\nBuild services.\n</posting>" in content
     assert "- ruby on rails" in content
+
+
+def test_tailor_without_examples_sends_an_empty_examples_section_and_logs_no_ids() -> None:
+    sink = InMemoryLogSink()
+
+    tailor(
+        FakeAIClient(sink, output=TAILORED),
+        base_resume="x",
+        posting_text="y",
+        keywords=[],
+        application_id=7,
+    )
+
+    assert "<examples>\n</examples>" in sink.records[0].request_json["messages"][0]["content"]
+    assert sink.records[0].retrieved_example_ids == []
+
+
+def test_tailor_puts_the_examples_in_the_prompt_and_logs_their_resume_ids() -> None:
+    sink = InMemoryLogSink()
+    examples = [
+        RetrievedExample(
+            resume_id=4, application_id=2, keywords=["ruby on rails"], content_markdown="# Past one"
+        ),
+        RetrievedExample(
+            resume_id=9, application_id=5, keywords=["go"], content_markdown="# Past two"
+        ),
+    ]
+
+    tailor(
+        FakeAIClient(sink, output=TAILORED),
+        base_resume="# Base",
+        posting_text="y",
+        keywords=["ruby on rails"],
+        application_id=7,
+        examples=examples,
+    )
+
+    record = sink.records[0]
+    content = record.request_json["messages"][0]["content"]
+    assert "style and emphasis only" in content
+    assert "Example 1 (posting keywords: ruby on rails)\n# Past one" in content
+    assert "Example 2 (posting keywords: go)\n# Past two" in content
+    # The examples sit in their own section, apart from the base resume.
+    assert content.index("<examples>") > content.index("</base_resume>")
+    assert record.retrieved_example_ids == [4, 9]
+    assert record.prompt_version == "v1"  # filling the section is not a new prompt version
 
 
 def test_tailor_lets_a_failed_call_raise_after_it_is_logged() -> None:

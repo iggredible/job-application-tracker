@@ -12,6 +12,7 @@ from app.services.generation import tailor
 from app.services.guardrail import check
 from app.services.rendering import render_tailored_markdown
 from app.services.resume_review import TailoredDraft, present
+from app.services.retrieval import ExampleRetriever
 from app.services.transitions import GuardContext, run_guards
 
 
@@ -34,12 +35,14 @@ class TailoredResumeService:
         analyses: PostingAnalysisRepository,
         applications: ApplicationRepository,
         locks: GenerationLockRepository,
+        retriever: ExampleRetriever,
         clock: Clock = utc_now,
     ) -> None:
         self._resumes = resumes
         self._analyses = analyses
         self._applications = applications
         self._locks = locks
+        self._retriever = retriever
         self._clock = clock
 
     def run(self, application_id: int, ai: AIClient) -> TailoredDraft:
@@ -50,6 +53,10 @@ class TailoredResumeService:
         same application is refused. A failed call saves nothing: the client has already logged
         it in its own transaction. The guardrail check runs on the output in this same call, and
         its flags are saved as generated.
+
+        Past approved resumes with similar postings go in as examples. The search is a read in
+        this transaction and makes no AI call; with no match the call has no examples, and an
+        error in the search fails the request before any call is made.
         """
         application = self._applications.get(application_id)
         if application is None:
@@ -68,12 +75,16 @@ class TailoredResumeService:
             raise TailoringInProgress
 
         try:
+            examples = self._retriever.find(
+                analysis.keywords, exclude_application_id=application_id
+            )
             result = tailor(
                 ai,
                 base_resume=base.content_markdown,
                 posting_text=application.posting_text,
                 keywords=analysis.keywords,
                 application_id=application_id,
+                examples=examples,
             )
             markdown = render_tailored_markdown(base.content_markdown, result.output)
             flags = check(result.output, base.content_markdown, analysis.keywords)

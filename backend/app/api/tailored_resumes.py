@@ -9,12 +9,14 @@ from app.api.applications import get_clock
 from app.core.clock import Clock
 from app.core.db import get_session
 from app.repositories.applications import ApplicationRepository
+from app.repositories.examples import ExampleRepository
 from app.repositories.locks import GenerationLockRepository
 from app.repositories.posting_analyses import PostingAnalysisRepository
 from app.repositories.resumes import ResumeRepository
 from app.schemas.tailored_resume import GuardrailFlag, TailoredResumeRead
 from app.services.applications import ApplicationNotFound
 from app.services.resume_review import TailoredDraft
+from app.services.retrieval import FullTextRetriever
 from app.services.tailoring import (
     TailoredResumeService,
     TailoringBlocked,
@@ -32,6 +34,7 @@ def get_service(
         PostingAnalysisRepository(session),
         ApplicationRepository(session),
         GenerationLockRepository(session),
+        FullTextRetriever(ExampleRepository(session)),
         clock,
     )
 
@@ -43,6 +46,7 @@ def read_draft(draft: TailoredDraft) -> TailoredResumeRead:
         application_id=resume.application_id,  # type: ignore[arg-type]  # set on tailored ones
         status=resume.status,
         prompt_version=resume.ai_call.prompt_version,  # type: ignore[union-attr]
+        example_count=len(resume.ai_call.retrieved_example_ids),  # type: ignore[union-attr]
         content_markdown=resume.content_markdown,
         guardrail_flags=[GuardrailFlag(**asdict(flag)) for flag in draft.flags],
         created_at=resume.created_at,

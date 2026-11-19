@@ -14,6 +14,8 @@ export interface TailoredResume {
   application_id: number
   status: ReviewStatus
   prompt_version: string
+  /** How many past approved resumes the model was shown as examples. 0 for none. */
+  example_count: number
   content_markdown: string
   /** The current flags: they follow the text as it is now. */
   guardrail_flags: GuardrailFlag[]

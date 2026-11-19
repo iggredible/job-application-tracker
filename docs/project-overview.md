@@ -223,6 +223,13 @@ Matching rule: normalize both sides (lowercase, collapse whitespace, en and em d
 - With no approved resumes yet, tailoring runs without examples.
 - Put retrieval behind an interface so it can later be swapped for vector search.
 
+**Later improvements (not built; out of scope for the MVP).** Full-text search matches words, not meaning: "Backend engineer, Rails" and "Ruby on Rails developer" share few tokens, and boilerplate in a posting counts toward the match. Two upgrades, in order, each a new `ExampleRetriever` implementation that leaves the tailoring service unchanged:
+
+1. **Embedding search (pgvector).** Embed each posting once, when it is saved or edited, and store the vector in the same database with an HNSW index. At query time embed the current posting (or its approved requirements and keywords, so boilerplate does not count) and take the nearest neighbours by cosine distance. This finds the same kind of role when the wording differs. It needs an embeddings model and key (Anthropic offers none), a backfill step and a new dependency, so it needs approval first.
+2. **Hybrid search.** Run the full-text and the vector search, then merge the two rankings with reciprocal rank fusion. Exact terms such as "Kubernetes" still count, and the vector side covers paraphrases. This is the usual best practice for production RAG.
+
+Upgrade only if the eval (feature 16) shows that examples improve drafts and that better matches improve them further. Reranking with an LLM is not suggested: it would add a third place that calls the model.
+
 ### Eval
 
 A script (`python -m evals.run`) that calls the real model. It is run by hand when a prompt or the model changes. It does not run in CI.

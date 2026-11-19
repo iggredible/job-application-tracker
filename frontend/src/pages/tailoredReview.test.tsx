@@ -46,6 +46,7 @@ function sampleDraft(overrides: Record<string, unknown> = {}) {
     application_id: 1,
     status: 'draft',
     prompt_version: 'v1',
+    example_count: 0,
     content_markdown: DRAFT_TEXT,
     created_at: '2026-11-16T12:00:00Z',
     reviewed_at: null,
@@ -463,6 +464,14 @@ describe('an approved resume', () => {
     expect(section.queryByRole('textbox')).toBeNull()
     expect(section.queryByRole('button', { name: /save edits|approve|reject/i })).toBeNull()
     expect(section.queryByText('Base resume (read-only)')).toBeNull() // one pane, as in the design
+  })
+
+  it('says how many past examples the approved resume used', async () => {
+    reviewApi({ resumes: [approvedDraft({ example_count: 2 })] })
+    renderAt('/applications/1')
+
+    const section = await openSection()
+    expect(await section.findByText(/Approved Nov 16 · Prompt v1 · 2 past examples used/)).toBeTruthy()
   })
 
   it('says "after your edits" only when the outcome is edited then approved', async () => {
