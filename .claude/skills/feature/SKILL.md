@@ -1,7 +1,7 @@
 ---
 name: feature
 description: Run the per-feature workflow for this project - load a spec, plan, build, test, review, explain or complete
-argument-hint: load <number>|plan|start|test|review|explain|complete
+argument-hint: load <number>|plan|start|test|review [sync|async]|explain|complete
 disable-model-invocation: true
 ---
 
@@ -34,13 +34,21 @@ The first word is the action. Anything after it is that action's argument.
 | `plan` | Propose an implementation plan and wait for approval |
 | `start` | Create a branch, write tests first, then implement |
 | `test` | Run all checks and confirm the spec's tests exist |
-| `review` | Independent review by the `feature-agent` subagent, findings ranked by severity |
+| `review [sync\|async]` | Check the work against the spec and the project rules, findings ranked by severity. `sync` (default) runs in this session; `async` runs in the `feature-agent` subagent |
 | `explain` | Explain what changed and how it fits together |
 | `complete` | Record what happened, commit, push the branch and reset `current.md` (you merge) |
 
-Read `actions/<action>.md` in this skill's folder and follow it exactly. The one exception is `review`, below.
+Read `actions/<action>.md` in this skill's folder and follow it exactly. The one exception is `review` with `async`, below.
 
-### `review` runs in a subagent
+### `review` modes
+
+The word after `review` picks the mode:
+
+- No word, or `sync`: run the review in this session. Read `actions/review.md` and follow it exactly, like any other action. This session did the work, so the review is less independent. For an independent review use `async`, or run `sync` in a fresh session.
+- `async`: run the review in the `feature-agent` subagent, described below.
+- Anything else: say the valid modes are `sync` and `async`, and stop.
+
+### `review async` runs in a subagent
 
 Do not read `actions/review.md` or `current.md`, and do not look at the diff yourself. The reviewer must stay independent of this session.
 
@@ -48,7 +56,7 @@ Do not read `actions/review.md` or `current.md`, and do not look at the diff you
 
    > Review the feature currently in progress. Follow `.claude/skills/feature/actions/review.md`.
 
-2. Print the agent's report to the user verbatim. Do not summarize, reorder, soften or drop findings, and do not argue with them. You may add one line after the report only to say that it is the reviewer's output.
+2. The agent runs in the background. Tell the user the review has started and do not poll. When the agent finishes, print its report to the user verbatim. Do not summarize, reorder, soften or drop findings, and do not argue with them. You may add one line after the report only to say that it is the reviewer's output.
 3. Do not fix anything in the same invocation. Wait for the user to decide which findings to act on.
 
 If no action is given, or it is not in the table, list the actions and stop.
