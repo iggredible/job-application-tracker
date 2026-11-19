@@ -1,7 +1,7 @@
 DEV_DB := job_tracker
 TEST_DB := job_tracker_test
 
-.PHONY: setup dev test lint
+.PHONY: setup dev test lint seed
 
 # Create the dev and test databases, run migrations, install dependencies.
 setup:
@@ -20,6 +20,10 @@ setup:
 # Start the api and web processes from the Procfile.
 dev:
 	uv run --project backend honcho start
+
+# Fill an empty dev database with sample data. `make seed ARGS=--reset` wipes it first.
+seed:
+	cd backend && uv run python -m scripts.seed $(ARGS)
 
 test:
 	cd backend && uv run pytest
