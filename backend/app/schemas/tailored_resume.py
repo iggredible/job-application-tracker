@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.models import ReviewStatus
+from app.schemas.coverage import ApplicationCoverageRead
+from app.services.resume_review import Outcome
 
 
 class GuardrailFlag(BaseModel):
@@ -14,8 +16,8 @@ class GuardrailFlag(BaseModel):
 
 
 class TailoredResumeRead(BaseModel):
-    """What the Tailored resume section displays. There is no request body: everything the call
-    needs is read from the application, its approved analysis and the base resume."""
+    """What the Tailored resume section displays. Making a draft has no request body: everything
+    the call needs is read from the application, its approved analysis and the base resume."""
 
     id: int
     application_id: int
@@ -25,3 +27,14 @@ class TailoredResumeRead(BaseModel):
     # The current flags, calculated on request from the text as it is now.
     guardrail_flags: list[GuardrailFlag]
     created_at: datetime
+    reviewed_at: datetime | None
+    # Calculated on request, never stored: what became of this resume, and whether the section
+    # shows it (one per application).
+    outcome: Outcome
+    displayed: bool
+
+
+class TailoredResumeEditRead(TailoredResumeRead):
+    """A saved edit: the resume, and the coverage of its new text against the base resume."""
+
+    coverage: ApplicationCoverageRead

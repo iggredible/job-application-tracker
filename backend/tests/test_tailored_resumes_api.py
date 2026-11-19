@@ -386,7 +386,10 @@ def test_get_lists_the_drafts_newest_first_with_status_prompt_version_and_date(
     response = client.get(f"/applications/{application_id}/tailored-resumes")
 
     assert response.status_code == 200
-    assert response.json() == [second, first]
+    # `outcome` and `displayed` describe the whole list, so the older draft changed since its POST.
+    derived = {"outcome", "displayed"}
+    stable = [{k: v for k, v in r.items() if k not in derived} for r in response.json()]
+    assert stable == [{k: v for k, v in r.items() if k not in derived} for r in (second, first)]
     assert [(r["status"], r["prompt_version"]) for r in response.json()] == [("draft", "v1")] * 2
     assert response.json()[0]["created_at"] > response.json()[1]["created_at"]
 

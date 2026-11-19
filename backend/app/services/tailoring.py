@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 
 from app.ai.types import AIClient
 from app.core.clock import Clock, utc_now
@@ -9,8 +9,9 @@ from app.repositories.posting_analyses import PostingAnalysisRepository
 from app.repositories.resumes import ResumeRepository
 from app.services.applications import ApplicationNotFound
 from app.services.generation import tailor
-from app.services.guardrail import Flag, check, current_flags
+from app.services.guardrail import check
 from app.services.rendering import render_tailored_markdown
+from app.services.resume_review import TailoredDraft, present
 from app.services.transitions import GuardContext, run_guards
 
 
@@ -24,15 +25,6 @@ class TailoringBlocked(Exception):
 
 class TailoringInProgress(Exception):
     """A tailoring for this application is already running."""
-
-
-@dataclass(frozen=True)
-class TailoredDraft:
-    """A tailored resume with the guardrail flags to show beside it (the current flags, not the
-    stored ones)."""
-
-    resume: Resume
-    flags: list[Flag]
 
 
 class TailoredResumeService:
@@ -104,27 +96,14 @@ class TailoredResumeService:
             self._resumes.rollback()  # also releases the lock
             raise
         self._resumes.refresh(resume)
-        return TailoredDraft(resume, flags)
+        # The new draft is the newest, so it is the first of the list, pending and displayed.
+        return self.list_for_application(application_id)[0]
 
     def list_for_application(self, application_id: int) -> list[TailoredDraft]:
-        """Newest first, each with its current flags.
-
-        The flags follow the text as it is now, the current base resume and the latest approved
-        analysis's keywords. The flags as generated stay in `guardrail_flags`.
-        """
+        """Newest first, each with its current flags, its outcome and whether it is displayed."""
         if self._applications.get(application_id) is None:
             raise ApplicationNotFound
         resumes = self._resumes.list_tailored_for_application(application_id)
-        base = self._resumes.get_base()
         analysis = self._analyses.get_latest_approved(application_id)
         keywords = analysis.keywords if analysis else []
-        drafts = []
-        for resume in resumes:
-            stored = [Flag(**flag) for flag in resume.guardrail_flags]
-            flags = (
-                stored
-                if base is None
-                else current_flags(stored, resume.content_markdown, base.content_markdown, keywords)
-            )
-            drafts.append(TailoredDraft(resume, flags))
-        return drafts
+        return present(resumes, self._resumes.get_base(), keywords)

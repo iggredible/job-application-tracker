@@ -105,7 +105,7 @@ export function sampleAnalysis(overrides: Record<string, unknown> = {}) {
 
 /**
  * Answers the detail page's requests: the application, its timeline and its analysis (none
- * unless one is given).
+ * unless one is given), and no tailored resumes.
  */
 export function detailHandler(
   application: Record<string, unknown> = sampleApplication(),
@@ -113,7 +113,13 @@ export function detailHandler(
   analysis: Record<string, unknown> | null = null,
 ): ApiHandler {
   return ({ path }) => ({
-    body: path.endsWith('/timeline') ? timeline : path.endsWith('/analysis') ? analysis : application,
+    body: path.endsWith('/timeline')
+      ? timeline
+      : path.endsWith('/analysis')
+        ? analysis
+        : path.endsWith('/tailored-resumes')
+          ? []
+          : application,
   })
 }
 
