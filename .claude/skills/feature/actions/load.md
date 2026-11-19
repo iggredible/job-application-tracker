@@ -15,4 +15,5 @@
    - `## Goals`: the spec's requirements as bullets, kept in the spec's wording
    - `## Notes`: the spec's notes and the paths of its references
    - Clear `## Decisions`
-5. Reply with a short summary of the feature and any questions about the spec. Do not plan or write code.
+5. Commit the `current.md` change on the current branch (for example `docs: load feature NN`), so the record travels with the feature.
+6. Reply with a short summary of the feature and any questions about the spec. Do not plan or write code.
