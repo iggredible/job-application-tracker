@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -34,6 +34,21 @@ Use the LLM to write a tailored resume from the base resume and the posting. The
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- One resume row has exactly one AI call (`resumes.ai_call_id`). Tailoring again inserts a new row with its own call; older drafts are never changed. A failed call is logged in `ai_calls` and saves no resume. Reason: matches the schema in the overview and keeps the AI metrics per draft.
+- Migration 0007 adds only `ai_call_id`, `content_json`, `draft_markdown` (all nullable, the base resume has none) and the `draft_markdown` trigger. `guardrail_flags` waits for feature 9. The prompt version is read from the linked `ai_calls` row, not stored.
+- Both guards (approved analysis, base resume) are functions in `GUARDS["start_tailoring"]` in `services/transitions.py`, analysis first. `GuardContext` gains optional `approved_analysis` and `base_resume` fields. Reason: guards are data, and the spec asks for the analysis guard under its own action.
+- "Approved analysis" means the latest approved one (`PostingAnalysisRepository.get_latest_approved()`), even when a newer draft exists. A guard failure returns 409 with its reason, before the lock is taken and before any AI call.
+- `tailor()` is pure (no session) and uses the default `max_tokens` of 8192. The renderer lives in its own pure module, `services/rendering.py`.
+- Renderer: a section runs from a matching heading (Summary, Experience or Skills, case-insensitive) to the next heading of the same or higher level, so `###` jobs belong to `## Experience`. Headings inside code fences are ignored. Generated sections keep the base's heading text and level. Jobs render as `### {title} — {employer} ({dates})` with `- ` bullets.
+- Renderer: if the model returns an empty part (no summary, no experiences or no skills), the base section is kept unchanged, because replacing it with nothing would drop the user's content. A missing section is inserted after the header, in the order Summary, Experience, Skills. The header is the text before the first heading plus a leading `#` title and its body.
+- The repository gets `add_draft()` (flush only), because `ResumeRepository.add()` turns an `IntegrityError` into `BaseResumeExists`. A named `tailored` predicate (application set and `ai_call_id` not null) is used for the list.
+- `GET /applications/{id}/tailored-resumes` items carry `id, application_id, status, prompt_version, content_markdown, created_at`. The page needs the Markdown to show the draft, and there is no detail endpoint in the spec.
+- Frontend locks the section unless the analysis the API returns for display is `approved`. The server guard stays authoritative. Accepted mismatch: a newer draft from Analyze again hides an older approved analysis, so the UI shows Locked while the API would allow tailoring. Reason: no `can_tailor` field in the spec, and tailoring against an analysis in mid-review is not wanted.
+- With drafts present and the analysis no longer approved, the Draft state shows with Tailor again disabled.
+- The draft is shown read-only as preformatted monospace text, as in the screenshot. No Markdown library is in the approved packages, so none is added.
+- Browser verification needs a working AI call. There is no `backend/.env` with `ANTHROPIC_API_KEY` in this checkout. Open item before the feature can be reported done: a key in `backend/.env`, or the user's OK to verify with a stubbed backend response.
+- At completion, update `docs/architecture.md` (the `tailor()` note and a Tailored resume section), `current.md` and `docs/AI_WORKFLOW.md`.
 
 ## Notes
 
