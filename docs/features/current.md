@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -25,6 +25,19 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Full-text search stays the implementation for this feature. Embedding and hybrid search are recorded in the overview (AI Design: Retrieval) as later improvements, not built. Reason: one user, few approved resumes, no extra service or key, and the search stays deterministic and testable.
+- Split across layers: `FullTextRetriever` and the `ExampleRetriever` Protocol are in `services/retrieval.py` (they decide: OR query, quoting, limit 3, exclusion). The SQL is in a new `repositories/examples.py` (`ExampleRepository.search()`). Reason: services hold no SQL and repositories hold no decisions; a separate repository keeps the feature easy to drop.
+- Every keyword is quoted, not only multi-word ones, and embedded `"` is stripped. Reason: same meaning for plain words, and a keyword like `-foo` or a bare `or` cannot be read as operator syntax.
+- Search uses `websearch_to_tsquery('english', ...)` against `posting_tsv`, ranked by `ts_rank`. Ties break by `reviewed_at` descending, then resume id, so the order is total and the result is deterministic.
+- One candidate per application: its newest approved tailored resume (`ai_call_id` set, status `approved`, latest `reviewed_at`, then id). Reason: "most recently approved one"; `reviewed_at` is the only approval timestamp.
+- Example text is the approved `content_markdown` (with the user's edits), not `draft_markdown`. Reason: it is what the user vouched for.
+- Each example is labeled with its application's latest approved analysis keywords.
+- `format_examples()` puts a notice line first in the examples block (style and emphasis only, not a source of facts). `ai/prompts/tailor_resume.py` is unchanged and `VERSION` stays `v1`.
+- No minimum rank and no length normalization. Reason: the spec has none; a weak match can fill a slot when fewer than 3 strong ones exist. Revisit with the eval (feature 16).
+- `example_count` on `TailoredResumeRead` is derived on request from the call's `retrieved_example_ids` and never stored. The header shows "N past examples used" on both the draft and the approved line, "1 past example used" for one, and nothing for zero.
+- A retrieval error fails the tailoring request (rolled back, no AI call made). No silent fallback.
+- New migration `0010` adds only `applications.posting_tsv` (generated, stored) and its GIN index. No new dependency.
 
 ## Notes
 
