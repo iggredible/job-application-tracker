@@ -289,12 +289,13 @@ Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(fi
 | `/` | Applications list, with stage counts, stage filter and the new application dialog |
 | `/applications/:id` | Application detail: posting, analysis, tailored resume, mark as applied, timeline |
 | `/resume` | Base resume editor |
-| `/insights` | Metrics |
+| `/insights` | Stat tiles, funnel chart and metrics tables |
 
 - Server state is fetched and cached with TanStack Query. There is no client-side store.
 - The frontend holds NO business rules. Allowed next stages, guard failures and step status all come from the API. So do the options in the Change stage control (Applied is not one of them), which analysis and which tailored resume the page displays, and which resumes can be submitted, each with a reason when it cannot.
 - Creating and editing an application share one dialog. Everything else on the detail page is a section that changes state in place; nothing navigates between steps.
 - Components are shadcn/ui with Tailwind.
+- The Insights page (`pages/InsightsPage.tsx`) makes two queries, `usePipelineMetrics()` and `useAIMetrics()` in `hooks/useMetrics.ts`, and renders what they return. `lib/metrics.ts` holds the response types and the formatters (rounding and labels only, `n/a` for a null). Each block is a component in `components/insights/` (`StatTiles`, `FunnelCard`, `TimeInStageCard`, `ResumeComparisonCard`, `AIPerformanceCard`), and `SectionState` gives each section its loading, error and empty body, so one failed query leaves the other sections showing. The funnel is the only chart, a Recharts bar chart through `components/ui/chart.tsx`. The two page grids use `minmax(0,1fr)` and every card has `min-w-0`, so the wide AI table scrolls inside its card instead of stretching the page.
 - `docs/screenshots/` shows the finished pages. `docs/reference/v0-prototype/` holds generated reference code that is never imported.
 
 ## Observability

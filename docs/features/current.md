@@ -1,62 +1,25 @@
-# Current Feature: 15 Insights Page
+# Current Feature
 
 ## Status
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Planned
+Not started
 
 ## Goals
 
 <!-- What the spec requires, as bullets. -->
 
-- `/insights` route, linked from the nav
-- Two TanStack Query calls, one per metrics endpoint
-- A "Job search" group:
-  - Three stat tiles: Applied (of total tracked), Response rate (with both counts) and Stale applications
-  - Funnel: one horizontal bar per stage using the shadcn/ui chart component, each labeled with its count and the share that moved on
-  - Table: median time in each stage, with the sample size
-  - Table: tailored vs base resume with applied, responses and response rate, and a line noting that the samples are small and that tailoring may go to better-fit jobs, so the comparison is not a controlled test
-- An "AI performance" group:
-  - One table by feature, prompt version and model: calls, failed, approved as is, edited then approved, rejected, pending, superseded, edit ratio, flags per draft, estimated cost and median latency
-  - Show "n/a" where a value does not apply
-- The wide table scrolls sideways on narrow screens
-- Loading and empty states for each section
-
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
-
-- Frontend only: feature 14 already returns every number, so no backend change and no migration.
-- The page renders API values and never recomputes a rate, median, share or count. Formatters only round and label. "n/a" follows the API's nulls, so the page does not decide which features a column applies to.
-- Funnel: one horizontal `BarChart` through the shadcn chart component (adds `recharts`, already listed in the overview). Labels come from `count` and `share_of_previous`; the first stage shows only its count. Default `ChartTooltip` kept.
-- Spec wins over the screenshot: Model and Superseded columns, and the spec's confounding note under tailored vs base.
-- Time in stage shows whichever stages the API returns (so Saved appears, terminal stages do not).
-- Formatting: percent to a whole number, days to one decimal with ".0" dropped (singular for 1), flags per draft one decimal, cost two decimals with `$`, latency in seconds to one decimal. Stage names use `stageLabel()`; feature names use a small label map.
-- Empty states, one per section: tiles show zeros; funnel "No applications have reached Applied yet"; time table "No completed stages yet"; comparison "No applications have been applied yet"; AI table "No AI calls yet".
-- Error state added: a one-line message per section when its query fails. The spec lists only loading and empty states; this was approved at planning so a failed query does not leave a blank or stuck section.
-- No cache invalidation from other pages. The default `staleTime` of 0 refetches when the page is opened.
-- Tests mock Recharts' `ResponsiveContainer` with a fixed size, because it measures zero in jsdom; Playwright covers the real rendering.
-- Files: `lib/metrics.ts`, `hooks/useMetrics.ts`, `components/insights/` (StatTiles, FunnelCard, TimeInStageCard, ResumeComparisonCard, AIPerformanceCard, SectionState), `pages/InsightsPage.tsx`, `components/ui/chart.tsx`, `pages/insights.test.tsx`.
 
 ## Notes
 
 <!-- Constraints, references and anything the next session needs. -->
 
-- One chart only. Everything else is a table or a tile.
-- Always show the sample size next to a rate.
-- Keep the chart's default hover tooltips.
-- Where the spec and `insights.png` disagree, the spec wins. The screenshot has no Model or Superseded column and a shorter tailored-vs-base note; the spec requires both columns and the confounding note.
-- Existing: the nav link, the `/insights` route and a stub `frontend/src/pages/InsightsPage.tsx`. Not yet installed: the shadcn chart component (`components/ui/chart.tsx`) and `recharts`, which the project overview lists as allowed via the chart component.
-- Endpoints (feature 14): `GET /metrics/pipeline` and `GET /metrics/ai`. Schemas in `backend/app/schemas/metrics.py`.
-- References:
-  - `docs/project-overview.md` (Telemetry, UI/UX Guidelines)
-  - `docs/features/14-metrics-endpoints-spec.md`
-  - `docs/screenshots/insights.png`
-  - `docs/reference/v0-prototype/` (layout only)
-- Frontend feature: verify in a browser with the Playwright MCP against `make dev` and `make seed` data before reporting done.
-
 ## History
+
 
 - Doc review before feature 1: resolved contradictions between CLAUDE.md, the overview, the architecture and the specs, and fixed design gaps (snapshot, guardrail holes, metrics rules).
 - 01 Project scaffold (2026-11-18): FastAPI health check with request logging, Alembic baseline, React app shell, Makefile, Procfile and CI; all checks green.
@@ -73,3 +36,4 @@ Planned
 - 12 Example Retrieval (2026-11-19): before tailoring, a full-text search over `applications.posting_tsv` finds up to 3 past approved tailored resumes, which fill the prompt's examples section and are logged in `ai_calls.retrieved_example_ids`, and the section header shows "N past examples used".
 - 13 Seed Data (2026-11-19): `python -m scripts.seed` (`make seed`, `--reset` to wipe) fills an empty database in one transaction with about 40 fictional applications, valid backdated timelines, analyses, tailored resumes and `seed`-model `ai_calls` rows shaped to the Insights screenshot, from a pure fixed-seed planner.
 - 14 Metrics Endpoints (2026-11-19): `GET /metrics/pipeline` and `GET /metrics/ai` return the funnel, time in stage, response rates, stale count and per-prompt-version AI outcomes, edit ratio, flags, tokens, cost and latency, all calculated on request from the logs and read-only.
+- 15 Insights Page (2026-11-19): `/insights` shows stat tiles, a Recharts funnel and tables for time in stage, tailored vs base resume and AI calls by feature, prompt version and model, from the two metrics endpoints, with loading, empty and error states per section and a wide AI table that scrolls inside its card.
