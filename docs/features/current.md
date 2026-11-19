@@ -1,65 +1,22 @@
-# Current Feature: 14 Metrics Endpoints
+# Current Feature
 
 ## Status
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Planned
+Not started
 
 ## Goals
 
 <!-- What the spec requires, as bullets. -->
 
-- Expose process and AI telemetry as two read-only endpoints. Every number is a query over the event logs; nothing is stored
-- `GET /metrics/pipeline` returns:
-  - Total applications tracked and how many reached Applied
-  - Funnel: how many applications reached Applied, Screening, Interviewing and Offer, with the share that moved on from the previous step. Reaching a later stage counts as having passed the earlier funnel stages, so Applied → Interviewing still counts at Screening
-  - Median time in each stage, with the sample size for each. Only completed intervals count: a stage an application is still in, and the terminal stages, are excluded
-  - Response rate: share of applied applications with any later stage change other than Withdrawn, with both counts
-  - Count of stale applications, using the stale rule from feature 3
-  - Response rate for tailored vs base resume: applied count, response count and rate for each
-- `GET /metrics/ai` returns, per feature, prompt version and model (so seeded rows with model `seed` stay separate from real calls):
-  - Total calls and failed calls
-  - Counts for approved as is, edited then approved, rejected, pending and superseded
-  - Average edit ratio
-  - Average guardrail flags per draft
-  - Input and output tokens, and estimated cost
-  - Median latency
-- Edit ratio, edited-then-approved and flags are null for posting analysis
-- "Reached a stage" is read from `timeline_events`, not from the current stage
-- Metric logic lives in `services/metrics.py` with queries in repositories
-- Response schemas appear correctly in `/docs`
-- Tests using small hand-built datasets with known answers
-
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
 
-- Backend only: no migration, no model change, no dependency, no frontend change. The Playwright step does not apply; `/docs` and the seeded data are checked instead.
-- Files: `api/metrics.py`, `schemas/metrics.py`, `services/metrics.py`, and read-only queries added to the timeline, applications, resumes, posting analyses and AI calls repositories. `docs/architecture.md` gets a Metrics section and its "not exposed until feature 14" line is updated.
-- Aggregation is done in Python over rows from repositories, not in SQL, so `derive_outcome()`, `edit_ratio()`, `is_stale()`, `resume_kind()` and `allowed_next()` are reused as they are. The data is one user's, so volume is not a concern.
-- Reached a stage is read from `timeline_events` `to_stage`, never `applications.stage`. Accepted counts at Offer. Rejected and Withdrawn are not funnel stages. The share of the previous step is null when the previous count is 0 and for Applied.
-- Time in stage covers every non-terminal stage, Saved included (the screenshot shows it), taken from `allowed_next()` rather than a hard-coded list. An interval is a stage change to the next stage change. The current stage and terminal stages have no next change, so they drop out. Median is in days as a decimal, null when the sample is 0.
-- Response rate: among applications that reached Applied, those with a later stage change that is not Withdrawn. A rejection counts as a response.
-- Tailored vs base: `resume_kind()` of the submitted resume, so a snapshot counts as base. An application with no submitted resume is left out. Counts are returned unadjusted.
-- AI rows are grouped by `(feature, prompt_version, model)` so `seed` rows stay separate. Failed means `error IS NOT NULL`. Median latency covers every call in the group, failed included. Tokens and cost are sums of the values stored at call time; cost is returned as a number in USD.
-- Superseded is returned as its own count even though the screenshot has no column for it: the spec wins, and feature 15 decides whether to show it.
-- Average edit ratio is over approved tailored resumes only (the overview says "edit ratio before approval"), as-is ones counting 0. It is null for a group with no approved drafts and for posting analysis. Average flags per draft is over all tailored drafts in the group, from `guardrail_flags` as generated. Edited-then-approved is null for posting analysis.
-- Snapshots are excluded from the AI metrics by reading only resumes with both `application_id` and `ai_call_id` set.
-
 ## Notes
 
 <!-- Constraints, references and anything the next session needs. -->
-
-- Spec: `docs/features/14-metrics-endpoints-spec.md`
-- References: `docs/project-overview.md` (Telemetry, Derived Values), `docs/features/10-review-flow-spec.md` (outcome and edit ratio helpers), `docs/screenshots/insights.png` (every number shown must be available from these endpoints)
-- Also relevant: `docs/features/03-stages-timeline-spec.md` (stale rule, `services/staleness.py`), `docs/architecture.md` (snapshots vs tailored resumes, metrics row)
-- These endpoints never write
-- Reuse the outcome and edit ratio helpers and the stale rule. Do not reimplement them in SQL
-- Guardrail flags are read from `guardrail_flags` as generated, not from the current flags
-- Base-resume snapshots (`application_id` set, `ai_call_id` null) are excluded from the AI metrics (use the "tailored" predicate). In the tailored vs base comparison, a submitted snapshot counts as base
-- The tailored vs base comparison is confounded, because the user may tailor for better-fit jobs. The endpoint returns the counts as they are, and the page says so (feature 15)
-- The screenshot's Time in stage table includes Saved, so the interval table covers every non-terminal stage; the spec's rule decides edge cases
 
 ## History
 
@@ -77,3 +34,4 @@ Planned
 - 11 Mark as Applied and Submitted Resume (2026-11-19): `POST /applications/{id}/apply` is the only way from Saved to Applied, saving a snapshot of the base resume (or pointing at an approved tailored resume) in `submitted_resume_id`, and the API returns the three workflow steps, shown as a strip and a Mark as applied section.
 - 12 Example Retrieval (2026-11-19): before tailoring, a full-text search over `applications.posting_tsv` finds up to 3 past approved tailored resumes, which fill the prompt's examples section and are logged in `ai_calls.retrieved_example_ids`, and the section header shows "N past examples used".
 - 13 Seed Data (2026-11-19): `python -m scripts.seed` (`make seed`, `--reset` to wipe) fills an empty database in one transaction with about 40 fictional applications, valid backdated timelines, analyses, tailored resumes and `seed`-model `ai_calls` rows shaped to the Insights screenshot, from a pure fixed-seed planner.
+- 14 Metrics Endpoints (2026-11-19): `GET /metrics/pipeline` and `GET /metrics/ai` return the funnel, time in stage, response rates, stale count and per-prompt-version AI outcomes, edit ratio, flags, tokens, cost and latency, all calculated on request from the logs and read-only.

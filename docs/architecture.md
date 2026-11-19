@@ -78,8 +78,19 @@ Plain code, no AI, calculated on every request and never stored. `services/cover
 - `present()` turns the application's tailored resumes (newest first) into `TailoredDraft`s: the current flags, the `outcome` and `displayed`. `GET /applications/{id}/tailored-resumes` and every response above use it, so they agree.
   - `derive_outcome()`: pending, superseded, approved, edited then approved or rejected. A draft is superseded when any newer tailored resume exists for the application. A decided resume is never superseded.
   - `displayed_resume()`: the newest resume if it is a draft awaiting review, else the latest approved, else the latest rejected. The frontend renders the one marked `displayed`.
-  - `edit_ratio()`: `1 − SequenceMatcher(None, draft, content, autojunk=False).ratio()`. Built and tested, but not exposed until the metrics (feature 14).
+  - `edit_ratio()`: `1 − SequenceMatcher(None, draft, content, autojunk=False).ratio()`. The AI metrics (feature 14) average it over the approved drafts.
 - Outcome, edit ratio and `displayed` are calculated on request and never stored.
+
+## Metrics
+
+Two read-only endpoints, calculated on every request and never stored. `services/metrics.py` holds the logic as pure functions over rows plus `MetricsService`, which fetches the rows through the repositories and assembles the result. It reuses `derive_outcome()`, `edit_ratio()`, `is_stale()`, `resume_kind()` and `allowed_next()` instead of rewriting them. Aggregation happens in Python, which is fine at one user's volume.
+
+- `GET /metrics/pipeline` (from `timeline_events`): total and applied counts, the funnel, median days per stage, response rate, stale count and the tailored vs base response rates.
+  - "Reached a stage" is the furthest funnel stage in an application's `to_stage` history, never `applications.stage`. Accepted counts at Offer.
+  - Time in stage covers every stage that can be left. An interval runs from entering a stage to the next stage change, so the current stage and the terminal stages have none. Times are converted to UTC before they are compared or subtracted, because datetimes that share one tzinfo are subtracted by wall-clock time and would be an hour off across a daylight-saving change.
+  - A response is a stage change after Applied other than Withdrawn. A rejection counts; withdrawing does not.
+  - A snapshot of the base resume counts as base. The comparison is confounded (the user may tailor for better-fit jobs), so the endpoint returns the counts as they are.
+- `GET /metrics/ai` (from `ai_calls` and the drafts they produced): one row per feature, prompt version and model, so `seed` rows stay apart. Outcome counts come from the artifact each call produced; a failed call produced none. The edit ratio is the mean over approved drafts, the flags are the mean of `guardrail_flags` as generated over all drafts, and both are null for posting analysis, which has no edit step. Only tailored resumes (with an AI call) are read, so snapshots are excluded.
 
 ## Trust chain for AI output
 

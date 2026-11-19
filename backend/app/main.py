@@ -2,7 +2,16 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.ai.types import AIConfigurationError
-from app.api import analysis, applications, coverage, health, resume, resumes, tailored_resumes
+from app.api import (
+    analysis,
+    applications,
+    coverage,
+    health,
+    metrics,
+    resume,
+    resumes,
+    tailored_resumes,
+)
 from app.core.logging import configure_logging
 from app.core.middleware import RequestLoggingMiddleware
 
@@ -17,6 +26,7 @@ app.include_router(analysis.router)
 app.include_router(coverage.router)
 app.include_router(tailored_resumes.router)
 app.include_router(resumes.router)
+app.include_router(metrics.router)
 
 
 @app.exception_handler(AIConfigurationError)

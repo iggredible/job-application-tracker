@@ -52,8 +52,8 @@ def derive_outcome(
 
 
 def edit_ratio(draft_markdown: str, content_markdown: str) -> float:
-    """How much the user changed the draft: 0 means unedited, 1 means nothing is left. Not
-    exposed yet: the metrics (feature 14) are its first reader."""
+    """How much the user changed the draft: 0 means unedited, 1 means nothing is left. The AI
+    metrics (feature 14) average it over the approved drafts."""
     matcher = SequenceMatcher(None, draft_markdown, content_markdown, autojunk=False)
     return 1 - matcher.ratio()
 
