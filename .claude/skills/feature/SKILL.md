@@ -1,7 +1,7 @@
 ---
 name: feature
 description: Run the per-feature workflow for this project - load a spec, plan, build, test, review, explain or complete
-argument-hint: load <number>|plan|start|test|review [sync|async]|explain|complete
+argument-hint: load <number>|plan|start|test|review [inline|agent]|explain|complete
 disable-model-invocation: true
 ---
 
@@ -34,21 +34,21 @@ The first word is the action. Anything after it is that action's argument.
 | `plan` | Propose an implementation plan and wait for approval |
 | `start` | Create a branch, write tests first, then implement |
 | `test` | Run all checks and confirm the spec's tests exist |
-| `review [sync\|async]` | Check the work against the spec and the project rules, findings ranked by severity. `sync` (default) runs in this session; `async` runs in the `feature-agent` subagent |
+| `review [inline\|agent]` | Check the work against the spec and the project rules, findings ranked by severity. `inline` (default) runs in this session, which can be the build session or a fresh one; `agent` runs in the `feature-agent` subagent |
 | `explain` | Explain what changed and how it fits together |
 | `complete` | Record what happened, commit, push the branch and reset `current.md` (you merge) |
 
-Read `actions/<action>.md` in this skill's folder and follow it exactly. The one exception is `review` with `async`, below.
+Read `actions/<action>.md` in this skill's folder and follow it exactly. The one exception is `review agent`, below.
 
 ### `review` modes
 
 The word after `review` picks the mode:
 
-- No word, or `sync`: run the review in this session. Read `actions/review.md` and follow it exactly, like any other action. This session did the work, so the review is less independent. For an independent review use `async`, or run `sync` in a fresh session.
-- `async`: run the review in the `feature-agent` subagent, described below.
-- Anything else: say the valid modes are `sync` and `async`, and stop.
+- No word, or `inline`: run the review in this session. Read `actions/review.md` and follow it exactly, like any other action. If this session built the feature, the review is less independent. For an independent review use `agent`, or run `inline` in a fresh session.
+- `agent`: run the review in the `feature-agent` subagent, described below.
+- Anything else: say the valid modes are `inline` and `agent`, and stop.
 
-### `review async` runs in a subagent
+### `review agent` runs in a subagent
 
 Do not read `actions/review.md` or `current.md`, and do not look at the diff yourself. The reviewer must stay independent of this session.
 
