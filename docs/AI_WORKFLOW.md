@@ -27,6 +27,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 05, AI foundation.** The plan used the SDK's `messages.parse()`, which checks the reply against the schema inside the call. A reply cut off mid-way would fail there as a generic validation error, before I could see that it was cut off. Claude switched to `messages.create()`, which checks why the call stopped first and validates the text after. The same read showed the SDK sends requests through `httpx2`, so the planned no-network guard on `httpx` would have blocked nothing; a test now proves the real SDK is blocked. I asked for a smoke script that makes three real calls, and it found what the stub missed: the model can return a `thinking` block before the text, so the stub and two tests now cover it. I chose not to guard a `max_tokens` limit that a one-page resume can't reach.
 
+**Feature 06, posting analysis.** My first frontend tests clicked Analyze before the analysis had loaded and failed three times; the card was fine, so the tests now wait for the button. In the browser, the screenshot meant to show the loading state caught the finished draft, because the real call took only a few seconds; a script that clicks and reads the buttons in one step showed all three disabled. The independent review found that approve and reject did not lock the row, so two tabs could decide the same draft. That got a failing test (a second session holds the row and the other decision must wait) and a `SELECT … FOR UPDATE`, and I checked the test by removing the lock and watching it fail.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->

@@ -133,11 +133,14 @@ sequenceDiagram
   - `api/ai.py`: `get_ai_client()`, the FastAPI provider that tests override with `FakeAIClient` (`tests/fakes.py`).
   - `models/ai_call.py` and `repositories/ai_calls.py`: the table, and a repository with `add` and `get` only.
   - `scripts/ai_smoke.py`: a hand-run check of the real API against the test stub. It is not part of `make test`.
+  - `ai/schemas.py`: the output models the LLM must return (`PostingAnalysisOutput`, `Requirement`, `RequirementCategory`). They carry no limits such as `maxItems`; code enforces those after parsing.
+  - `ai/prompts/posting_analysis.py`: prompt `posting_analysis` v1. It wraps the posting in `<posting>` tags, tells the model to treat it as data and neutralises any `</posting>` inside the text.
+  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result. `tailor()` arrives with feature 8.
 - The wrapper writes one row per call to a log sink, including failures (API error, refusal, truncated output, validation error). The app's sink writes `ai_calls` and commits in its own transaction, so the row survives a rollback in the caller. The eval passes an in-memory sink.
 - `AIClient` returns the validated output and the `ai_call_id`, so artifacts can store the foreign key.
 - The model name and API key come from environment variables and never reach the frontend.
 - Tests inject a `FakeAIClient` that writes through the same log sink, so rows and foreign keys behave as in production. No test makes a network call. Because the log commits separately, tests clean up by truncating tables instead of rolling back.
-- Starting an analysis or a tailoring takes a Postgres advisory lock per application and feature. A second request while one is running gets 409. The buttons are also disabled while a call is in flight.
+- Starting an analysis or a tailoring takes a Postgres advisory lock per application and feature (`repositories/locks.py`). It is a transaction-level, non-blocking lock (`pg_try_advisory_xact_lock`) held in the request's transaction across the AI call, so a second request gets 409 at once and a crash or rollback releases it. The cost is one database connection held while the call runs. The buttons are also disabled while a call is in flight.
 
 ## Retrieval
 
@@ -146,6 +149,24 @@ sequenceDiagram
 ## Base resume
 
 One editable Markdown document, stored as the `resumes` row with no application (`application_id` null). A unique partial index (`resumes_one_base_idx`) lets the database allow only one. `GET /resume` returns it or 404. `PUT /resume` creates or replaces it in place and always leaves it `approved`: `ResumeService.save_base()` sets the status and `updated_at` (from the injected clock), and the request schema carries only the text. A save that loses a race to a parallel first save replaces the row the other one created. Blank text is rejected. Replacing the text never changes what an application already sent, because applying with the base resume stores a snapshot (feature 11).
+
+## Posting analysis
+
+`POST /applications/{id}/analysis` makes one AI call and saves a `draft` row in `posting_analyses`. `GET /applications/{id}/analysis` returns the analysis to display (or `null`). `POST /analyses/{id}/approve` and `/reject` are the only things that change a status.
+
+| Module | Role |
+| --- | --- |
+| `api/analysis.py` | The four routes. Only `POST .../analysis` depends on `get_ai_client`. Maps `AnalysisInProgress` to 409, `AIError` to a generic 502 and a missing application or analysis to 404. |
+| `main.py` | An exception handler turns `AIConfigurationError` into 503 "AI is not configured." |
+| `services/analysis.py` | `PostingAnalysisService`: `run()` (lock, `analyze()`, save, commit; rolls back on any failure), `get_for_display()` and `approve()` / `reject()`. |
+| `services/review.py` | The review lifecycle as data (`REVIEW_TRANSITIONS`: draft to approved or rejected) and `apply_decision()`, the only code that assigns an analysis status. Feature 10 reuses it for resumes. |
+| `repositories/posting_analyses.py` | Queries for the table. It has no delete. |
+| `repositories/locks.py` | The advisory lock. |
+| `models/posting_analysis.py` | The table. `prompt_version` is read from the linked `ai_calls` row, not stored. |
+
+- Every Analyze inserts a new row and old rows are kept, because the AI metrics are calculated from them. An older draft is never auto-rejected.
+- The card shows the newest analysis, except that a rejected one never hides an older approved one. The rule lives in `get_for_display()`, and the frontend only renders what the API returns.
+- Approve and reject are allowed only from `draft`; anything else is a 409.
 
 ## Frontend
 

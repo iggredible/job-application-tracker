@@ -85,12 +85,36 @@ export function sampleEvent(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/** Answers the detail page's two requests: the application and its timeline. */
+export function sampleAnalysis(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 5,
+    application_id: 1,
+    status: 'draft',
+    prompt_version: 'v1',
+    requirements: [
+      { text: 'Ruby on Rails services in production', category: 'must_have' },
+      { text: 'PostgreSQL', category: 'must_have' },
+      { text: 'CI/CD', category: 'nice_to_have' },
+    ],
+    keywords: ['ruby on rails', 'postgresql', 'ci/cd'],
+    created_at: '2026-11-16T12:00:00Z',
+    reviewed_at: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Answers the detail page's requests: the application, its timeline and its analysis (none
+ * unless one is given).
+ */
 export function detailHandler(
   application: Record<string, unknown> = sampleApplication(),
   timeline: Record<string, unknown>[] = [sampleEvent()],
+  analysis: Record<string, unknown> | null = null,
 ): ApiHandler {
-  return ({ path }) => ({ body: path.endsWith('/timeline') ? timeline : application })
+  return ({ path }) => ({
+    body: path.endsWith('/timeline') ? timeline : path.endsWith('/analysis') ? analysis : application,
+  })
 }
 
 export function sampleApplication(overrides: Record<string, unknown> = {}) {
