@@ -152,3 +152,33 @@ def test_timeline_repository_has_no_update_or_delete() -> None:
 
     assert not {m for m in methods if m.startswith(("update", "delete", "remove", "set"))}
     assert {"add", "list_for_application"} <= methods
+
+
+def _imports(path: Path) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+    return names
+
+
+def test_the_resume_slice_follows_the_layering_rules() -> None:
+    api = _imports(APP_DIR / "api" / "resume.py")
+    service = _imports(APP_DIR / "services" / "resumes.py")
+    repository = _imports(APP_DIR / "repositories" / "resumes.py")
+
+    # api/ holds no queries and no tables. Like the applications router, it only passes the
+    # session to the repository when it wires up the service.
+    assert not {m for m in api if m.startswith("app.models") or m == "sqlalchemy"}
+    # services/ import no FastAPI and write no SQL.
+    assert not {m for m in service if m.startswith(("fastapi", "sqlalchemy"))}
+    # repositories/ make no HTTP or business decisions.
+    assert not {m for m in repository if m.startswith(("fastapi", "app.services", "app.api"))}
+
+
+def test_the_resume_schema_cannot_carry_a_status() -> None:
+    from app.schemas.resume import ResumeWrite
+
+    assert set(ResumeWrite.model_fields) == {"content_markdown"}

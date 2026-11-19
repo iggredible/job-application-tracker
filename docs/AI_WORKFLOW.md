@@ -23,6 +23,8 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 03, stages and timeline.** The pill-click test showed that the pills and the table blanked out on every click while the new stage loaded; I kept the previous data on screen (`keepPreviousData`) so they stay put. The screenshot's stale notice says "14 or more days", but the API does not send the threshold, so using it would copy a business rule into the frontend; the notice says "no recent activity" instead and the difference is documented.
 
+**Feature 04, base resume.** Two first saves racing would have made two rows, or an error. The unique partial index stops that, and the repository turns the violation into `BaseResumeExists` so the service retries as a replace. Blank text is rejected with 422, because a blank base resume would make tailoring meaningless.
+
 ## Prompt iteration
 
 <!-- Eval results for prompt v1 and v2, and what changed between them. -->

@@ -6,7 +6,11 @@ import { mockApi, renderAt, sampleList } from './test-utils'
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }))
 
 beforeEach(() => {
-  mockApi(() => ({ body: sampleList([]) }))
+  mockApi(({ path }) =>
+    path === '/api/resume'
+      ? { status: 404, body: { detail: 'resume not found' } }
+      : { body: sampleList([]) },
+  )
 })
 
 // Vitest globals are off, so Testing Library does not clean up between tests on its own.
@@ -40,16 +44,13 @@ describe('app shell', () => {
 
     fireEvent.click(resume)
 
-    expect(await screen.findByRole('heading', { name: 'Resume' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Base resume' })).toBeTruthy()
     expect(resume.getAttribute('aria-current')).toBe('page')
     expect(applications.getAttribute('aria-current')).toBeNull()
   })
 
   it('renders the placeholder page for each route that is not built yet', () => {
-    for (const [path, heading] of [
-      ['/resume', 'Resume'],
-      ['/insights', 'Insights'],
-    ] as const) {
+    for (const [path, heading] of [['/insights', 'Insights']] as const) {
       const { unmount } = renderAt(path)
       expect(screen.getByRole('heading', { name: heading })).toBeTruthy()
       unmount()

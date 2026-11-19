@@ -135,6 +135,10 @@ sequenceDiagram
 
 `services/retrieval.py` defines an `ExampleRetriever` interface. The MVP implementation uses PostgreSQL full-text search over `applications.posting_tsv`, queried with the approved analysis keywords joined by OR (multi-word keywords quoted) and ranked by `ts_rank`. A vector-search implementation can replace it without changing the tailoring service.
 
+## Base resume
+
+One editable Markdown document, stored as the `resumes` row with no application (`application_id` null). A unique partial index (`resumes_one_base_idx`) lets the database allow only one. `GET /resume` returns it or 404. `PUT /resume` creates or replaces it in place and always leaves it `approved`: `ResumeService.save_base()` sets the status and `updated_at` (from the injected clock), and the request schema carries only the text. A save that loses a race to a parallel first save replaces the row the other one created. Blank text is rejected. Replacing the text never changes what an application already sent, because applying with the base resume stores a snapshot (feature 11).
+
 ## Frontend
 
 | Route | Page |
