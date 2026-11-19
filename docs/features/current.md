@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -30,6 +30,18 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Migration 0008 adds only `resumes.guardrail_flags` (JSONB, NOT NULL, default `'[]'`), with no trigger: the spec lists none and `CLAUDE.md` names triggers only for `draft_markdown`. Feature 8 drafts keep `[]` (dev data, no backfill).
+- `services/guardrail.py` is pure. It copies coverage's whole-word pattern `(?<!\w)phrase(?!\w)` and adds dash normalization, because coverage documents that it normalizes nothing else.
+- Dates: years are `(19|20)\d\d` tokens; months are matched only as month words (so "Market" is not "mar") and compared by their first three letters; both are read from the whole base resume.
+- Numbers: one flag per distinct token with the first line as context; tokens glued to letters (`S3`, `1st`) are not tokens. In `current_flags` numbers come from the Summary body and bullet lines, keywords also from the Skills body, and headings are excluded so a flagged year in a heading is not flagged twice.
+- Flags are ordered by field (employer, title, dates, number, skill, keyword), so `check` and `current_flags` agree on a fresh draft.
+- Flag messages are the display line: `Skill "Kubernetes"`, and `Number "40%" in "Cut report run time by 40%…"` as in the screenshot. One flag reads "1 thing … is not in your base resume".
+- `rendering._headings` becomes public (`find_headings`), behavior unchanged, so `current_flags` can find the Summary and Skills sections.
+- `TailoredResumeService.run()` and `list_for_application()` return `TailoredDraft(resume, flags)`. The API exposes only the current flags; the stored snapshot is read by metrics in feature 14.
+- At read time the keywords come from the latest approved analysis and the text from the current base resume, so displayed flags can drift if either changed after generation.
+- Known gap, to note in `AI_WORKFLOW.md`: a structural fact the user adds while editing (for example a new skill) is not re-checked, because the spec recalculates only numbers and keywords.
+- Browser check: there is no seed (feature 13), so the draft row and its flags are inserted by SQL for the Playwright check.
 
 ## Notes
 
