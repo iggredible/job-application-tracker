@@ -15,15 +15,11 @@
 
 Do not commit. Do not start anything the spec does not list.
 
-## Keep the code simple
+## Keep It Simple
 
-- Do not over-engineer.
-- Write the shortest working diff that solves the exact request.
-- Check existing codebase utilities and standard libraries before writing new code
-- Do not create abstractions, wrappers, or helpers for single-use logic.
-- Do not add configuration options, feature flags, or error handling for speculative edge cases.
-- Touch only files and lines required by the task; avoid drive-by refactoring, renaming, or unrequested comments.
-- If a task is ambiguous or speculative, ask or state the assumption before building a complex structure. 
+- Write the minimum code needed to solve the exact request.
+- Do not create new files, helpers, or abstractions unless asked.
+- Only change lines directly required by the task.
 
 ## Installing packages
 
