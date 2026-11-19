@@ -2,9 +2,9 @@
 
 ## Status
 
-<!-- Not started | In progress | Completed -->
+<!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -32,6 +32,22 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Backfilled `saved` events use each application's `created_at`, so last activity stays accurate for existing rows.
+- Notes are trimmed and a blank note returns 422; there is no maximum length (the spec sets none).
+- `idle_days` is whole days, rounded down, and is always an integer; `is_stale` is a separate flag. The stale rule lives only in `services/staleness.py`.
+- `counts_by_stage` (all 8 stages, zeros included) and `stale_count` cover all applications and ignore the `stage` filter, so the pills and the notice stay stable while filtering.
+- If an application has no timeline event, `last_activity_at` falls back to its `created_at`.
+- List order is unchanged (newest created first); the screenshot's order is not a spec requirement.
+- The selected stage filter lives in the URL (`/?stage=applied`) so Back from a detail page keeps it.
+- Guard failures map to 409 with the reason. No real guards exist yet (features 8 and 11).
+- Saved applications list Applied in the Change stage control for now, per the spec table; feature 11 removes it. The "Apply in step 3 below" hint is not built.
+- Request bodies: stage `{ "to_stage": ... }`, notes `{ "note": ... }`. A 409 returns `detail: {message, allowed_next_stages}`.
+- Stage changes apply on click with no confirmation, because the spec lists none. Terminal stages cannot be undone (a mistake is corrected by a note).
+- `change_stage()` locks the application row (`SELECT ... FOR UPDATE`) so two concurrent changes cannot both pass validation.
+- The only place that assigns `Application.stage` is `ApplicationRepository.update_stage()`, called only by `change_stage()`. The architecture test scans `app/` with `ast` to enforce this.
+- The `dropdown-menu` and `alert` shadcn components are added through the shadcn CLI. No new npm packages: `radix-ui` is already installed.
+- The browser check uses hand-made applications and backdated SQL inserts for stale rows, since seed data arrives in feature 13.
 
 ## Notes
 
