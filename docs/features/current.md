@@ -1,72 +1,22 @@
-# Current Feature: 11 Mark as Applied and Submitted Resume
+# Current Feature
 
 ## Status
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Planned
+Not started
 
 ## Goals
 
-### Backend
-
-- Migration adding `applications.submitted_resume_id` with its foreign key to `resumes`
-- `POST /applications/{id}/apply` with `{"choice": "base"}` or `{"choice": "tailored", "resume_id": ...}`. It is the only endpoint that performs Saved → Applied. It calls `change_stage()` with the choice in `context`. The generic stage endpoint rejects Saved → Applied with 409
-- Guard on Saved → Applied: the request must include a choice
-- The chosen resume must be the base resume (which must exist) or an approved tailored resume for this application
-- Choosing the base resume saves a snapshot of it (`application_id` set, `ai_call_id` null, status `approved`, the same text). `submitted_resume_id` points to the snapshot, and the snapshot and the stage change happen in the same transaction. Choosing a tailored resume points `submitted_resume_id` at it
-- Express the guard as data in the guard structure, alongside the transitions
-- A failed guard returns 409 with a clear message
-- The application response includes the submitted resume (the snapshot, or the tailored resume) and the applied date
-- `allowed_next_stages` for a Saved application omits Applied. The response also carries a `stage_change_hint` ("Apply in step 3 below" for Saved), so the frontend applies no rule of its own
-- `GET /applications/{id}/submittable-resumes` returns the base resume and every tailored resume for the application, each with `submittable` and, when false, a `reason` (for example "Approve this draft first")
-- A pure function in `services/` that computes the three workflow steps for an application, returned in the application response. Check the rules in this order for each step; "left Saved" means the stage is no longer Saved:
-  - Step 1, posting analysis: done when an approved analysis exists; skipped when the application left Saved without one; otherwise current
-  - Step 2, tailored resume: done when an approved tailored resume exists (a base snapshot is not a tailored resume); skipped when the application left Saved without one; locked when no approved analysis exists; otherwise current
-  - Step 3, mark as applied: done when the application left Saved with a submitted resume; skipped when it left Saved without one (withdrawn); locked when no base resume exists; current when an approved tailored resume exists and the stage is Saved; otherwise available
-  - At most one step is current
-- Tests: missing choice, draft resume, another application's resume, the valid cases, each step status including an application withdrawn from Saved (skipped, never done), the snapshot being created and unaffected by later base resume edits, and the generic stage endpoint rejecting Saved → Applied
-
-### Frontend
-
-- A "Mark as applied" section on the detail page, between Tailored resume and Timeline. It is a section, not a dialog or a separate page
-- The section has four states:
-  - Locked: no base resume exists yet; link to the Resume page
-  - Open: the stage is Saved; shows "Which resume did you send?" with radio options and a Mark as applied button
-  - Done: the application has left Saved with a submitted resume; shows a read-only line with the applied date and which resume was sent
-  - Not applied: the application was withdrawn from Saved; shows a read-only "Withdrawn before applying" line
-- Radio options come from `GET /applications/{id}/submittable-resumes`: the base resume and every tailored resume for this application, each with its date. Options that are not submittable are listed but disabled, with the API's reason shown. The frontend applies no rule
-- The Mark as applied button is the primary button only when step 3 is current; otherwise it is a secondary button
-- The Change stage control renders the options and the hint the API returns. For an application in Saved, that is Withdrawn only, with the hint "Apply in step 3 below". Applied happens through this section, so the resume question cannot be skipped
-- A three-step strip under the header showing each step's status from the API: a check for done, a highlighted border for current, a dashed border for locked, available or skipped, and one line of status text
-- List page: add a "Resume sent" column (Base, Tailored, or "Not sent yet")
+<!-- What the spec requires, as bullets. -->
 
 ## Decisions
 
-- Missing choice is a 409, not a 422. `choice` is optional in the request schema so `{}` reaches the guard (`require_choice`) and returns 409; an unknown value such as `"foo"` is a 422. The spec lists "missing choice" as a failed guard.
-- Applied date is read from the Saved → Applied timeline event, not stored. Metrics and derived values are calculated on request.
-- Step status text comes from the API, using the screenshot wording, so the frontend holds no step logic.
-- Nothing is preselected in the Mark as applied radios (the step-1 screenshot shows none). The user must pick, so the resume question cannot be skipped.
-- Snapshot effect is a table entry (`_EFFECTS[(SAVED, APPLIED)]`) run inside `change_stage()` after the guards and before the commit, not an `if` on a transition. The snapshot, `submitted_resume_id`, stage change and timeline event share one transaction.
-- Generic stage endpoint rejects Saved → Applied through the `require_choice` guard (data), and `DEDICATED_ACTIONS` data removes Applied from `allowed_next_stages` and supplies `stage_change_hint`. `api/` holds no rule.
-- `change_stage()` reads the application with a row lock, so a double click cannot create two snapshots.
-- A superseded but approved tailored resume stays submittable: the spec only requires "approved".
-- Base choice: `submitted_resume_id` points to a new snapshot row (`application_id` set, `ai_call_id` null, approved, copy of the base `content_markdown`, `draft_markdown` null). The base resume row and the tailored resumes are untouched. Tailored choice: it points straight at the approved tailored row.
-- Submittable options are ordered tailored (newest first), then base, as in the screenshot.
-- No new dependency: the shadcn radio-group uses the installed `radix-ui` package.
-- Browser verification uses sample rows inserted into the dev database by a throwaway script (seed is feature 13), with no real AI calls.
+<!-- Choices made while planning or building, with the reason. -->
 
 ## Notes
 
-- The frontend holds no step logic. It renders the statuses the API returns.
-- Do not show keyword coverage beside the radio options, even though the screenshots do.
-- Other transitions are unchanged.
-- The submitted resume cannot be changed after the application leaves Saved.
-- A base-resume snapshot is not a tailored resume. It never appears in the tailored-resume list, in retrieval or in the AI metrics.
-- Applications moved to Applied before this feature have no submitted resume. Reset the development database after this migration.
-- Spec: `docs/features/11-submitted-resume-spec.md`
-- References: `docs/project-overview.md` (Features B: Guards), `docs/architecture.md` (State and guards), `docs/features/03-stages-timeline-spec.md`
-- Screenshots: `docs/screenshots/detail-step-1.png`, `detail-step-2.png`, `detail-step-3.png` (step strip and Mark as applied section in each state), `docs/screenshots/applications-list.png` (Resume sent column)
+<!-- Constraints, references and anything the next session needs. -->
 
 ## History
 
@@ -81,3 +31,4 @@ Planned
 - 08 Tailored Resume Draft (2026-11-19): one AI call writes a structured draft from the base resume and the approved keywords, rendered to Markdown by code and saved as a `draft` behind `POST` and `GET /applications/{id}/tailored-resumes`, with two guards, a lock per application, a `draft_markdown` trigger and a Locked, Ready and Draft section on the detail page.
 - 09 Guardrail Check (2026-11-19): a pure `check()` flags employers, titles, dates, numbers, skills and keywords that the base resume lacks and stores them as generated in `resumes.guardrail_flags`, and a pure `current_flags()` recalculates what the user sees, shown as a warning box above the draft.
 - 10 Tailored Resume Review (2026-11-19): the user edits a draft beside the base resume, then approves or rejects it behind `PATCH /resumes/{id}` and `POST /resumes/{id}/approve` and `/reject`, with outcome, edit ratio and the displayed resume calculated on request, never stored.
+- 11 Mark as Applied and Submitted Resume (2026-11-19): `POST /applications/{id}/apply` is the only way from Saved to Applied, saving a snapshot of the base resume (or pointing at an approved tailored resume) in `submitted_resume_id`, and the API returns the three workflow steps, shown as a strip and a Mark as applied section.

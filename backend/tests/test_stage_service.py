@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.models import EventType, Stage, TimelineEvent
 from app.repositories.applications import ApplicationRepository
+from app.repositories.posting_analyses import PostingAnalysisRepository
+from app.repositories.resumes import ResumeRepository
 from app.repositories.timeline import TimelineRepository
 from app.schemas.application import ApplicationCreate, ApplicationUpdate
 from app.services.applications import (
@@ -14,6 +16,7 @@ from app.services.applications import (
     GuardFailed,
     InvalidTransition,
 )
+from app.services.resumes import ResumeService
 from app.services.transitions import GUARDS, GuardFailure
 from tests.conftest import FakeClock
 
@@ -21,7 +24,23 @@ S = Stage
 
 
 def make_service(session: Session, clock: FakeClock) -> ApplicationService:
-    return ApplicationService(ApplicationRepository(session), TimelineRepository(session), clock)
+    # A base resume exists, so a Saved application can be applied with it (feature 11).
+    ResumeService(ResumeRepository(session), clock).save_base("# Jordan Avery\n")
+    return ApplicationService(
+        ApplicationRepository(session),
+        TimelineRepository(session),
+        ResumeRepository(session),
+        PostingAnalysisRepository(session),
+        clock,
+    )
+
+
+def move(service: ApplicationService, application_id: int, stage: Stage):  # noqa: ANN201
+    """Saved -> Applied goes through the apply action (with the base resume); the rest through
+    change_stage()."""
+    if stage is S.APPLIED:
+        return service.apply(application_id, "base", None)
+    return service.change_stage(application_id, stage)
 
 
 def make_application(service: ApplicationService, **overrides) -> int:
@@ -64,7 +83,7 @@ def test_change_stage_updates_stage_and_writes_event_with_clock_time(
     created_at = clock.now
     clock.advance(days=2)
 
-    view = service.change_stage(application_id, S.APPLIED)
+    view = move(service, application_id, S.APPLIED)
 
     assert view.application.stage is S.APPLIED
     assert event_rows(db_session, application_id) == [
@@ -93,7 +112,7 @@ def test_a_walk_through_the_pipeline_records_every_step(
 
     for stage in (S.APPLIED, S.SCREENING, S.INTERVIEWING, S.OFFER, S.ACCEPTED):
         clock.advance(days=1)
-        service.change_stage(application_id, stage)
+        move(service, application_id, stage)
 
     steps = [(e[1], e[2]) for e in event_rows(db_session, application_id)]
     assert steps == [
@@ -113,7 +132,8 @@ def test_failed_transition_writes_nothing(db_session: Session, clock: FakeClock)
     with pytest.raises(InvalidTransition) as raised:
         service.change_stage(application_id, S.OFFER)
 
-    assert raised.value.allowed == [S.APPLIED, S.WITHDRAWN]
+    # Applied is not offered: it happens through the apply action.
+    assert raised.value.allowed == [S.WITHDRAWN]
     db_session.expire_all()
     assert service.get(application_id).application.stage is S.SAVED
     assert len(event_rows(db_session, application_id)) == 1
@@ -170,8 +190,8 @@ def test_guards_receive_the_application_and_the_extra_input(
     def spy(context):
         seen.append(context)
 
-    monkeypatch.setitem(GUARDS, (S.SAVED, S.APPLIED), [spy])
-    service.change_stage(application_id, S.APPLIED, context={"resume_id": 7})
+    monkeypatch.setitem(GUARDS, (S.SAVED, S.WITHDRAWN), [spy])
+    service.change_stage(application_id, S.WITHDRAWN, context={"resume_id": 7})
 
     assert seen[0].application.id == application_id
     assert seen[0].extra == {"resume_id": 7}
@@ -188,7 +208,7 @@ def test_stage_and_event_are_committed_together(
 
     monkeypatch.setattr(TimelineRepository, "add", boom)
     with pytest.raises(RuntimeError):
-        service.change_stage(application_id, S.APPLIED)
+        service.change_stage(application_id, S.WITHDRAWN)
 
     # Nothing was committed: a second session still sees the old stage and one event.
     with Session(db_session.get_bind()) as other:
@@ -234,7 +254,7 @@ def test_timeline_is_newest_first_with_id_as_the_tiebreak(
     application_id = make_application(service)
     service.add_note(application_id, "same instant as creation")
     clock.advance(days=1)
-    service.change_stage(application_id, S.APPLIED)
+    move(service, application_id, S.APPLIED)
 
     events = service.timeline(application_id)
 
@@ -264,7 +284,7 @@ def test_a_new_application_has_last_activity_now_and_is_not_stale(
 
     assert view.last_activity_at == clock.now
     assert (view.is_stale, view.idle_days) == (False, 0)
-    assert view.allowed_next_stages == [S.APPLIED, S.WITHDRAWN]
+    assert view.allowed_next_stages == [S.WITHDRAWN]
 
 
 def test_last_activity_is_the_newest_timeline_event(db_session: Session, clock: FakeClock) -> None:
@@ -344,8 +364,8 @@ def test_list_counts_cover_all_applications_when_filtered(
     a = make_application(service, company="A")
     b = make_application(service, company="B")
     make_application(service, company="C")
-    service.change_stage(a, S.APPLIED)
-    service.change_stage(b, S.APPLIED)
+    move(service, a, S.APPLIED)
+    move(service, b, S.APPLIED)
     service.change_stage(b, S.REJECTED)
 
     everything = service.list()
@@ -367,7 +387,7 @@ def test_stale_count_covers_all_applications_and_skips_terminal_ones(
     service.change_stage(old_closed, S.WITHDRAWN)
     clock.advance(days=20)
     fresh = make_application(service, company="Fresh")
-    service.change_stage(fresh, S.APPLIED)
+    move(service, fresh, S.APPLIED)
 
     result = service.list(stage=S.APPLIED)
 
@@ -385,4 +405,4 @@ def test_list_items_carry_the_derived_fields(db_session: Session, clock: FakeClo
     [view] = service.list().items
 
     assert (view.is_stale, view.idle_days) == (True, 18)
-    assert view.allowed_next_stages == [S.APPLIED, S.WITHDRAWN]
+    assert view.allowed_next_stages == [S.WITHDRAWN]

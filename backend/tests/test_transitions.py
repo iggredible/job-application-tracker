@@ -78,10 +78,22 @@ def test_every_stage_has_an_entry_in_the_transition_table() -> None:
     assert set(TRANSITIONS) == set(Stage)
 
 
-def test_the_only_registered_guards_are_for_starting_a_tailoring() -> None:
-    assert list(GUARDS) == ["start_tailoring"]
+def test_the_registered_guards_are_for_tailoring_and_for_applying() -> None:
+    assert set(GUARDS) == {"start_tailoring", (S.SAVED, S.APPLIED)}
     assert GUARDS["start_tailoring"] == [require_approved_analysis, require_base_resume]
-    assert run_guards((S.SAVED, S.APPLIED), GuardContext(application=None)) is None
+
+
+def test_every_other_transition_has_no_guard() -> None:
+    for source, targets in TRANSITIONS.items():
+        for target in targets:
+            if (source, target) != (S.SAVED, S.APPLIED):
+                assert run_guards((source, target), GuardContext(application=None)) is None
+
+
+def test_saved_to_applied_needs_a_choice() -> None:
+    failure = run_guards((S.SAVED, S.APPLIED), GuardContext(application=None))
+
+    assert failure == GuardFailure("Choose the resume you sent.")
 
 
 def test_tailoring_needs_an_approved_analysis() -> None:

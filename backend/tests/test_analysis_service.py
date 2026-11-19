@@ -14,6 +14,7 @@ from app.models import AIFeature, ReviewStatus
 from app.repositories.applications import ApplicationRepository
 from app.repositories.locks import GenerationLockRepository
 from app.repositories.posting_analyses import PostingAnalysisRepository
+from app.repositories.resumes import ResumeRepository
 from app.repositories.timeline import TimelineRepository
 from app.schemas.application import ApplicationCreate
 from app.services.analysis import (
@@ -45,7 +46,12 @@ def make_service(session: Session, clock: FakeClock) -> PostingAnalysisService:
 
 
 def make_application(session: Session) -> int:
-    service = ApplicationService(ApplicationRepository(session), TimelineRepository(session))
+    service = ApplicationService(
+        ApplicationRepository(session),
+        TimelineRepository(session),
+        ResumeRepository(session),
+        PostingAnalysisRepository(session),
+    )
     created = service.create(
         ApplicationCreate(
             company="Northwind Freight",

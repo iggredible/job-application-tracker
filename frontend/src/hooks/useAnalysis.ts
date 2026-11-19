@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { coverageKey } from '@/hooks/useCoverage'
+import { refreshSteps } from '@/hooks/useSubmission'
 import { api, ApiError } from '@/lib/api'
 import type { PostingAnalysis } from '@/lib/analysis'
 
@@ -28,8 +29,11 @@ export function useRunAnalysis(applicationId: number) {
       }),
     onSuccess: (analysis) => {
       queryClient.setQueryData(analysisKey(applicationId), analysis)
-      // A new draft can change which keywords coverage measures.
-      return queryClient.invalidateQueries({ queryKey: coverageKey })
+      // A new draft can change which keywords coverage measures, and the first step's line.
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: coverageKey }),
+        refreshSteps(queryClient, applicationId),
+      ])
     },
   })
 }
@@ -42,6 +46,8 @@ export function useReviewAnalysis(applicationId: number) {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: analysisKey(applicationId) }),
       queryClient.invalidateQueries({ queryKey: coverageKey }),
+      // The steps the strip shows follow the decision.
+      refreshSteps(queryClient, applicationId),
     ])
   return useMutation({
     mutationFn: ({ analysisId, decision }: { analysisId: number; decision: 'approve' | 'reject' }) =>

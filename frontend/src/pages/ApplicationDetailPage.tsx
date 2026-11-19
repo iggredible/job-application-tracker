@@ -3,10 +3,12 @@ import { useParams } from 'react-router'
 
 import { ApplicationDialog } from '@/components/ApplicationDialog'
 import { ChangeStageMenu } from '@/components/ChangeStageMenu'
+import { MarkAsAppliedSection } from '@/components/MarkAsAppliedSection'
 import { PostingAnalysisCard } from '@/components/PostingAnalysisCard'
 import { StageBadge } from '@/components/StageBadge'
 import { TailoredResumeSection } from '@/components/TailoredResumeSection'
 import { Timeline } from '@/components/Timeline'
+import { WorkflowSteps } from '@/components/WorkflowSteps'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useApplication } from '@/hooks/useApplications'
@@ -49,6 +51,8 @@ export function ApplicationDetailPage() {
         </div>
       </div>
 
+      <WorkflowSteps steps={application.steps} />
+
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section aria-label="Job posting">
           <Card className="h-full">
@@ -76,6 +80,8 @@ export function ApplicationDetailPage() {
       </div>
 
       <TailoredResumeSection applicationId={application.id} />
+
+      <MarkAsAppliedSection application={application} />
 
       <Timeline applicationId={application.id} />
 

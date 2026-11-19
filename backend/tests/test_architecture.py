@@ -10,6 +10,9 @@ import inspect
 import re
 from pathlib import Path
 
+from sqlalchemy import Engine
+from sqlalchemy import inspect as sa_inspect
+
 from app.repositories.timeline import TimelineRepository
 from app.schemas.application import ApplicationCreate, ApplicationUpdate
 
@@ -364,3 +367,120 @@ def test_the_outcome_and_the_edit_ratio_are_never_stored() -> None:
     columns = set(Resume.__table__.columns.keys())
 
     assert not columns & {"outcome", "edit_ratio", "edited", "displayed", "superseded"}
+
+
+# --- Mark as applied (feature 11) ---------------------------------------------------------------
+
+POINTER = "submitted_resume_id"
+
+
+def _writes_to_pointer(tree: ast.Module) -> list[tuple[ast.AST, str]]:
+    """Every place that could write `applications.submitted_resume_id`: an attribute assignment,
+    a keyword on a call that writes (Application(...), .values(...), .update(...)), setattr with
+    the name, a dict with the key, and raw SQL that sets the column."""
+    found: list[tuple[ast.AST, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            if any(isinstance(k, ast.Constant) and k.value == POINTER for k in node.keys):
+                found.append((node, "dict with the key"))
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if re.search(rf"update\s+applications\b.*\b{POINTER}\b", node.value, re.I | re.S):
+                found.append((node, "raw SQL"))
+        elif isinstance(node, ast.Assign | ast.AugAssign | ast.AnnAssign):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if isinstance(target, ast.Attribute) and target.attr == POINTER:
+                    found.append((node, "assigns the attribute"))
+        elif isinstance(node, ast.Call):
+            name = _call_name(node)
+            if name in WRITING_CALLS - {"setattr"}:
+                if any(keyword.arg == POINTER for keyword in node.keywords):
+                    found.append((node, f"{name}({POINTER}=...)"))
+            if name == "setattr" and len(node.args) >= 2:
+                field = node.args[1]
+                if isinstance(field, ast.Constant) and field.value == POINTER:
+                    found.append((node, "setattr"))
+    return found
+
+
+def test_only_the_repository_setter_writes_the_submitted_resume() -> None:
+    offenders = []
+    for path, tree in _sources():
+        owner = _enclosing_functions(tree)
+        relative = path.relative_to(APP_DIR).as_posix()
+        for node, how in _writes_to_pointer(tree):
+            allowed = relative == "repositories/applications.py" and (
+                owner.get(id(node)) == "set_submitted_resume"
+            )
+            if not allowed:
+                offenders.append(f"{relative}:{node.lineno} {how}")
+
+    assert offenders == []
+
+
+def test_only_the_apply_effect_calls_the_submitted_resume_setter() -> None:
+    callers = []
+    for path, tree in _sources():
+        owner = _enclosing_functions(tree)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and getattr(node.func, "attr", None) == (
+                "set_submitted_resume"
+            ):
+                callers.append((path.relative_to(APP_DIR).as_posix(), owner.get(id(node))))
+
+    assert callers == [("services/applications.py", "_record_submitted_resume")]
+
+
+def test_the_pointer_scan_would_catch_a_violation() -> None:
+    tree = ast.parse(
+        "application.submitted_resume_id = 5\n"
+        "Application(submitted_resume_id=5)\n"
+        "update(Application).values(submitted_resume_id=5)\n"
+        "setattr(application, 'submitted_resume_id', 5)\n"
+        "update(Application).values({'submitted_resume_id': 5})\n"
+        "session.execute(text('UPDATE applications SET submitted_resume_id = 5'))\n"
+        # None of these write it.
+        "x = application.submitted_resume_id\n"
+        "session.execute(text('SELECT submitted_resume_id FROM applications'))\n"
+        "service.apply(1, 'base', None)\n"
+    )
+
+    assert len(_writes_to_pointer(tree)) == 6
+
+
+def test_no_schema_accepts_the_submitted_resume_pointer_directly() -> None:
+    from app.schemas.application import ApplicationCreate, ApplicationUpdate, StageChange
+
+    for schema in (ApplicationCreate, ApplicationUpdate, StageChange):
+        assert POINTER not in schema.model_fields
+
+
+def test_the_apply_endpoint_goes_through_the_service() -> None:
+    source = (APP_DIR / "api" / "applications.py").read_text()
+
+    assert ".apply(" in source
+    assert "set_submitted_resume" not in source
+    assert "add_snapshot" not in source
+
+
+def test_the_submission_rules_are_pure() -> None:
+    imports = _imports(APP_DIR / "services" / "submission.py")
+
+    forbidden = {m for m in imports if m.startswith(("fastapi", "sqlalchemy", "app.repositories"))}
+    assert forbidden == set()
+
+
+def test_the_steps_and_the_applied_date_are_never_stored() -> None:
+    from app.models import Application
+
+    columns = set(Application.__table__.columns.keys())
+
+    assert not columns & {"steps", "step_status", "applied_at", "stage_change_hint"}
+    assert POINTER in columns
+
+
+def test_the_submitted_resume_has_a_foreign_key_to_resumes(test_engine: Engine) -> None:
+    foreign_keys = sa_inspect(test_engine).get_foreign_keys("applications")
+
+    targets = {tuple(fk["constrained_columns"]): fk["referred_table"] for fk in foreign_keys}
+    assert targets == {(POINTER,): "resumes"}

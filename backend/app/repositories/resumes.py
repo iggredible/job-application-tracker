@@ -1,8 +1,10 @@
+from collections.abc import Collection
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Resume
+from app.models import Resume, ReviewStatus
 
 
 class BaseResumeExists(Exception):
@@ -63,6 +65,37 @@ class ResumeRepository:
             .order_by(Resume.created_at.desc(), Resume.id.desc())
         )
         return list(self._session.scalars(query))
+
+    def add_snapshot(self, resume: Resume) -> Resume:
+        """Insert a snapshot of the base resume (it belongs to an application and has no AI call)
+        and flush so its id is available. The caller commits."""
+        self._session.add(resume)
+        self._session.flush()
+        return resume
+
+    def get_many(self, resume_ids: Collection[int]) -> dict[int, Resume]:
+        if not resume_ids:
+            return {}
+        query = select(Resume).where(Resume.id.in_(resume_ids))
+        return {resume.id: resume for resume in self._session.scalars(query)}
+
+    def tailored_statuses_by_application(
+        self, application_id: int | None = None
+    ) -> dict[int, list[ReviewStatus]]:
+        """The statuses of the tailored resumes (made by an AI call), newest first, by
+        application: every application, or just `application_id`. A base-resume snapshot has no
+        AI call, so it is never counted."""
+        query = (
+            select(Resume.application_id, Resume.status)
+            .where(Resume.application_id.is_not(None), Resume.ai_call_id.is_not(None))
+            .order_by(Resume.created_at.desc(), Resume.id.desc())
+        )
+        if application_id is not None:
+            query = query.where(Resume.application_id == application_id)
+        statuses: dict[int, list[ReviewStatus]] = {}
+        for owner, status in self._session.execute(query):
+            statuses.setdefault(owner, []).append(status)
+        return statuses
 
     def commit(self) -> None:
         self._session.commit()

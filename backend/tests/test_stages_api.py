@@ -29,6 +29,14 @@ def move(client: TestClient, application_id: int, to_stage: str):
     return client.post(f"/applications/{application_id}/stage", json={"to_stage": to_stage})
 
 
+def apply_with_base(client: TestClient, application_id: int):
+    """Saved -> Applied goes through the apply action (feature 11), with the base resume."""
+    assert client.put("/resume", json={"content_markdown": "# Jordan Avery\n"}).status_code == 200
+    response = client.post(f"/applications/{application_id}/apply", json={"choice": "base"})
+    assert response.status_code == 200, response.text
+    return response
+
+
 def parse(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
@@ -39,7 +47,7 @@ def parse(value: str) -> datetime:
 def test_application_response_has_the_derived_fields(client: TestClient, clock: FakeClock) -> None:
     created = create(client)
 
-    assert created["allowed_next_stages"] == ["applied", "withdrawn"]
+    assert created["allowed_next_stages"] == ["withdrawn"]
     assert parse(created["last_activity_at"]) == clock.now
     assert created["is_stale"] is False
     assert created["idle_days"] == 0
@@ -51,7 +59,7 @@ def test_patch_response_has_the_derived_fields(client: TestClient) -> None:
 
     body = client.patch(f"/applications/{created['id']}", json={"role": "Lead"}).json()
 
-    assert body["allowed_next_stages"] == ["applied", "withdrawn"]
+    assert body["allowed_next_stages"] == ["withdrawn"]
     assert "last_activity_at" in body and "is_stale" in body and "idle_days" in body
 
 
@@ -85,16 +93,17 @@ def test_terminal_application_is_not_stale_and_has_no_next_stages(
 
 def test_stage_endpoint_moves_the_application(client: TestClient, clock: FakeClock) -> None:
     created = create(client)
+    apply_with_base(client, created["id"])
     clock.advance(days=2)
 
-    response = move(client, created["id"], "applied")
+    response = move(client, created["id"], "screening")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["stage"] == "applied"
-    assert body["allowed_next_stages"] == ["screening", "interviewing", "rejected", "withdrawn"]
+    assert body["stage"] == "screening"
+    assert body["allowed_next_stages"] == ["interviewing", "rejected", "withdrawn"]
     assert parse(body["last_activity_at"]) == clock.now
-    assert client.get(f"/applications/{created['id']}").json()["stage"] == "applied"
+    assert client.get(f"/applications/{created['id']}").json()["stage"] == "screening"
 
 
 def test_invalid_transition_returns_409_with_the_allowed_next_stages(client: TestClient) -> None:
@@ -104,7 +113,7 @@ def test_invalid_transition_returns_409_with_the_allowed_next_stages(client: Tes
 
     assert response.status_code == 409
     detail = response.json()["detail"]
-    assert detail["allowed_next_stages"] == ["applied", "withdrawn"]
+    assert detail["allowed_next_stages"] == ["withdrawn"]
     assert "saved" in detail["message"] and "offer" in detail["message"]
 
 
@@ -198,7 +207,7 @@ def test_timeline_lists_events_newest_first(client: TestClient, clock: FakeClock
     clock.advance(days=1)
     client.post(f"/applications/{created['id']}/notes", json={"note": "emailed the recruiter"})
     clock.advance(days=1)
-    move(client, created["id"], "applied")
+    apply_with_base(client, created["id"])
 
     response = client.get(f"/applications/{created['id']}/timeline")
 
@@ -275,8 +284,8 @@ def test_stage_filter_narrows_items_but_not_the_counts(
     a = create(client, company="A")
     b = create(client, company="B")
     create(client, company="C")
-    move(client, a["id"], "applied")
-    move(client, b["id"], "applied")
+    apply_with_base(client, a["id"])
+    apply_with_base(client, b["id"])
     move(client, b["id"], "rejected")
     clock.advance(days=20)
 

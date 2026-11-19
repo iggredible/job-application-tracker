@@ -238,8 +238,8 @@ describe('change stage control', () => {
             status: 409,
             body: {
               detail: {
-                message: 'cannot move from saved to applied',
-                allowed_next_stages: ['withdrawn'],
+                message: 'cannot move from saved to withdrawn',
+                allowed_next_stages: [],
               },
             },
           }
@@ -249,10 +249,10 @@ describe('change stage control', () => {
 
     await screen.findByRole('heading', { name: 'Northwind Freight' })
     openMenu()
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Applied' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Withdrawn' }))
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('cannot move from saved to applied'),
+      expect(toast.error).toHaveBeenCalledWith('cannot move from saved to withdrawn'),
     )
     expect(toast.success).not.toHaveBeenCalled()
   })
@@ -274,7 +274,7 @@ describe('change stage control', () => {
 
     await screen.findByRole('heading', { name: 'Northwind Freight' })
     openMenu()
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Applied' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Withdrawn' }))
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
     await waitFor(() =>

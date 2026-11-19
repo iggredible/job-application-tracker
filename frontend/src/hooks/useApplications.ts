@@ -9,11 +9,11 @@ import type {
   TimelineEvent,
 } from '@/lib/applications'
 
-const listRoot = ['applications', 'list'] as const
+export const listRoot = ['applications', 'list'] as const
 const listKey = (stage?: Stage) => [...listRoot, stage ?? 'all'] as const
 // The timeline key starts with the detail key, so invalidating the detail refreshes both.
-const detailKey = (id: number) => ['applications', id] as const
-const timelineKey = (id: number) => [...detailKey(id), 'timeline'] as const
+export const detailKey = (id: number) => ['applications', id] as const
+export const timelineKey = (id: number) => [...detailKey(id), 'timeline'] as const
 
 export function useApplications(stage?: Stage) {
   return useQuery({

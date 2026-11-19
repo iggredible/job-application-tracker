@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import TimelineEvent
+from app.models import EventType, Stage, TimelineEvent
 
 
 class TimelineRepository:
@@ -31,6 +31,19 @@ class TimelineRepository:
             TimelineEvent.application_id == application_id
         )
         return self._session.scalar(query)
+
+    def applied_at_by_application(self, application_id: int | None = None) -> dict[int, datetime]:
+        """When each application moved Saved -> Applied (an application moves there once), for
+        every application or just `application_id`. Applications that never did are absent."""
+        query = select(TimelineEvent.application_id, func.min(TimelineEvent.created_at)).where(
+            TimelineEvent.type == EventType.STAGE_CHANGE,
+            TimelineEvent.from_stage == Stage.SAVED,
+            TimelineEvent.to_stage == Stage.APPLIED,
+        )
+        if application_id is not None:
+            query = query.where(TimelineEvent.application_id == application_id)
+        query = query.group_by(TimelineEvent.application_id)
+        return {owner: applied_at for owner, applied_at in self._session.execute(query)}
 
     def last_activity_by_application(self) -> dict[int, datetime]:
         query = select(TimelineEvent.application_id, func.max(TimelineEvent.created_at)).group_by(

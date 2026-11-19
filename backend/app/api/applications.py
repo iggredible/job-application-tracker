@@ -5,6 +5,8 @@ from app.core.clock import Clock, utc_now
 from app.core.db import get_session
 from app.models import Stage
 from app.repositories.applications import ApplicationRepository
+from app.repositories.posting_analyses import PostingAnalysisRepository
+from app.repositories.resumes import ResumeRepository
 from app.repositories.timeline import TimelineRepository
 from app.schemas.application import (
     ApplicationCreate,
@@ -12,9 +14,13 @@ from app.schemas.application import (
     ApplicationList,
     ApplicationRead,
     ApplicationUpdate,
+    ApplyRequest,
     NoteCreate,
     StageChange,
+    SubmittableResumeRead,
+    SubmittedResumeRead,
     TimelineEventRead,
+    WorkflowStepRead,
 )
 from app.services.applications import (
     ApplicationNotFound,
@@ -34,16 +40,33 @@ def get_clock() -> Clock:
 def get_service(
     session: Session = Depends(get_session), clock: Clock = Depends(get_clock)
 ) -> ApplicationService:
-    return ApplicationService(ApplicationRepository(session), TimelineRepository(session), clock)
+    return ApplicationService(
+        ApplicationRepository(session),
+        TimelineRepository(session),
+        ResumeRepository(session),
+        PostingAnalysisRepository(session),
+        clock,
+    )
 
 
 def _read(view: ApplicationView) -> ApplicationRead:
+    submitted = view.submitted_resume
     return ApplicationRead(
         **ApplicationFields.model_validate(view.application).model_dump(),
         allowed_next_stages=view.allowed_next_stages,
         last_activity_at=view.last_activity_at,
         is_stale=view.is_stale,
         idle_days=view.idle_days,
+        submitted_resume=(
+            SubmittedResumeRead(
+                id=submitted.id, kind=submitted.kind, created_at=submitted.created_at
+            )
+            if submitted
+            else None
+        ),
+        applied_at=view.applied_at,
+        stage_change_hint=view.stage_change_hint,
+        steps=[WorkflowStepRead(key=s.key, status=s.status, text=s.text) for s in view.steps],
     )
 
 
@@ -116,6 +139,69 @@ def change_stage(
         ) from None
     except GuardFailed as error:
         raise HTTPException(status_code=409, detail={"message": error.reason}) from None
+
+
+@router.post(
+    "/{application_id}/apply",
+    response_model=ApplicationRead,
+    responses={
+        404: {"description": "No such application."},
+        409: {
+            "description": (
+                "No resume was chosen, the chosen resume cannot be sent (the message says why), "
+                "or the application is no longer Saved."
+            )
+        },
+    },
+)
+def apply(
+    application_id: int,
+    data: ApplyRequest,
+    service: ApplicationService = Depends(get_service),
+) -> ApplicationRead:
+    """Move a Saved application to Applied, recording the resume that was sent: the base resume
+    (a snapshot of it is saved) or an approved tailored resume. The only way to apply."""
+    try:
+        return _read(service.apply(application_id, data.choice, data.resume_id))
+    except ApplicationNotFound:
+        raise _not_found() from None
+    except InvalidTransition as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(error),
+                "allowed_next_stages": [stage.value for stage in error.allowed],
+            },
+        ) from None
+    except GuardFailed as error:
+        raise HTTPException(status_code=409, detail={"message": error.reason}) from None
+
+
+@router.get(
+    "/{application_id}/submittable-resumes",
+    response_model=list[SubmittableResumeRead],
+    responses={404: {"description": "No such application."}},
+)
+def get_submittable_resumes(
+    application_id: int, service: ApplicationService = Depends(get_service)
+) -> list[SubmittableResumeRead]:
+    """The options for "Which resume did you send?": the tailored resumes, newest first, then
+    the base resume. A resume that cannot be sent is listed with the reason."""
+    try:
+        options = service.submittable_resumes(application_id)
+    except ApplicationNotFound:
+        raise _not_found() from None
+    return [
+        SubmittableResumeRead(
+            id=o.id,
+            kind=o.kind,
+            status=o.status,
+            date=o.date,
+            submittable=o.submittable,
+            reason=o.reason,
+        )
+        for o in options
+    ]
 
 
 @router.post("/{application_id}/notes", response_model=TimelineEventRead, status_code=201)
