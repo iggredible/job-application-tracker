@@ -1,7 +1,7 @@
 ---
 name: feature
 description: Run the per-feature workflow for this project - load a spec, plan, build, test, review, explain or complete
-argument-hint: load <number>|plan|start|test|review [inline|agent]|explain|complete
+argument-hint: load <number>|plan [--sudo]|start|test|review [inline|agent]|explain|complete
 disable-model-invocation: true
 ---
 
@@ -31,7 +31,7 @@ The first word is the action. Anything after it is that action's argument.
 | Action | What it does |
 | --- | --- |
 | `load <number>` | Load a feature spec into `current.md` |
-| `plan` | Propose an implementation plan and wait for approval |
+| `plan [--sudo]` | Propose an implementation plan, check that the user can recap it correctly, then wait for approval. `--sudo` skips the recap check |
 | `start` | Create a branch, write tests first, then implement |
 | `test` | Run all checks and confirm the spec's tests exist |
 | `review [inline\|agent]` | Check the work against the spec and the project rules, findings ranked by severity. `inline` (default) runs in this session, which can be the build session or a fresh one; `agent` runs in the `feature-reviewer-agent` subagent |
