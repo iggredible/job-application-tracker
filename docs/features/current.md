@@ -1,49 +1,41 @@
-# Current Feature: 16 Prompt Eval
+# Current Feature: 17 README and AI Workflow Write-Up
 
 ## Status
 
-Planned
+Not started
 
 ## Goals
 
-- `uv run python -m evals.run`, run by hand; requires `ANTHROPIC_API_KEY`
-- An `eval` target in the Makefile
-- Fixtures in `evals/fixtures/<name>/`: `posting.txt`, `resume.md` and `expect.json` with a `forbidden_skills` list
-- 3 to 5 fixtures, including one trap whose posting demands a skill the resume does not have
-- For each fixture, run the analysis and tailoring prompts through `analyze()` and `tailor()` in `services/generation.py`, the same pure functions the app's services call
-- Retrieval is off, so runs are comparable
-- The eval does not write to the app database. It passes the in-memory log sink to the AI client and never opens a database session
-- Score with the existing guardrail and keyword coverage functions
-- A fixture passes when:
-  - There are zero flags on employer, title, dates and numbers
-  - None of its forbidden skills appear in the draft
-  - Draft coverage is higher than base resume coverage (equal is enough when the base resume is already at 100%)
-- Other skill flags are reported but do not fail the fixture
-- Print a table: fixture, flags, coverage before and after, pass or fail
-- Write results to `evals/results/` in a file named with the prompt version and model
-- Exit with a non-zero code if any fixture fails
-- A unit test for the scoring logic using fake outputs, which does run in CI
+- `README.md`:
+  - What the app does and that it is single-user with no authentication
+  - Prerequisites: Python 3.12, uv, Node, PostgreSQL 16
+  - The `make` commands: `setup`, `dev`, `seed`, `test`, `lint`, `eval`
+  - A short architecture summary with the deterministic vs non-deterministic table
+  - A note on how the event log and structured request logs would plug into Prometheus, Grafana or Datadog
+  - What is out of scope
+- `docs/architecture.md` matches the code as built, including real module names
+- `docs/AI_WORKFLOW.md`:
+  - How the spec, plan and build loop worked
+  - What was reviewed line by line and what was verified through tests
+  - What went wrong and what changed as a result
+  - Eval results for prompt `v1` vs `v2`
+  - What would come next
+- `docs/demo.md`: the demo path from `make setup` and `make seed` through analysis, tailoring, guardrail, approval, mark as applied and Insights
+- Verify the demo path on a clean checkout
+- Compare each page with its screenshot and note any intended differences
+- CI is green
 
 ## Decisions
 
-- Location: `backend/evals/` (the project layout puts it there), run from `backend/` by `make eval`. Outside `app/`, so nothing in `app/` imports it.
-- Keywords: `tailor()` gets the keywords from `analyze()` directly, and the same keywords are used for the guardrail and coverage. The eval has no approval step.
-- Scoring is a pure module (`evals/scoring.py`) with no I/O and no AI, so the CI unit test runs it with fake drafts. Coverage and forbidden skills use the rendered Markdown draft; flags use the structured output, as the app does.
-- Forbidden skills are checked with `keyword_coverage()`, so they follow the same word-boundary rules as the app (`Go` does not match `Google`). The fixture loader rejects a forbidden skill that the base resume already contains.
-- Only employer, title, dates and number flags fail a fixture. Skill and keyword flags are reported only.
-- A failed AI call fails that fixture and the run continues. Missing `ANTHROPIC_API_KEY` or `ANTHROPIC_MODEL` exits 2; any failed fixture exits 1; all pass exits 0.
-- Results file: `evals/results/<analysis-version>_<tailor-version>_<model>.json`, with versions read from the in-memory sink's records. It holds every flag, coverage before and after, forbidden skills found, tokens and cost, and not the full drafts. A rerun with the same versions and model overwrites it; git history keeps the old one.
-- Four fixtures: `backend-python-clean`, `frontend-react`, `data-engineer-trap`, `already-covered`.
-- The eval makes no database session and uses `InMemoryLogSink`. No new dependency, no migration.
-- Writing the `v2` prompt is not part of this feature. It follows the first `v1` results.
-- No compare command: `v1` and `v2` are compared from the two committed results files. Compare total flags per fixture, not only pass or fail, because the model has no temperature setting and one run is noisy.
 
 ## Notes
 
-- The eval itself does not run in CI. It costs money and its outputs vary between runs.
-- Process: run `v1` and commit the results, improve the prompt as `v2`, run again, commit, and summarize the difference in `docs/AI_WORKFLOW.md`.
-- References: `docs/project-overview.md` (AI Design: Eval), `docs/features/09-guardrail-spec.md`, `docs/features/07-keyword-coverage-spec.md`, `docs/architecture.md` (generation functions, sink), `backend/app/services/generation.py`, `backend/app/services/guardrail.py`, `backend/app/services/coverage.py`, `backend/app/ai/sinks.py` (`InMemoryLogSink`).
-- Spec: `docs/features/16-eval-spec.md`. No screenshot.
+- No new features. `docs/AI_WORKFLOW.md` should already contain notes from each feature; this step edits and completes it.
+- `README.md` already exists (prerequisites and `setup`, `dev`, `test`, `lint` only). `docs/demo.md` does not exist yet.
+- The AI_WORKFLOW requirement for eval results `v1` vs `v2` depends on a `v2` prompt, which feature 16 left out on purpose ("Writing the `v2` prompt is not part of this feature. It follows the first `v1` results."). Only the `v1` results file exists in `backend/evals/results/`. Open question for planning.
+- Verifying the demo path and comparing pages with screenshots needs the Playwright MCP against `make dev` (CLAUDE.md, step 4a).
+- References: `docs/project-overview.md`, `docs/architecture.md`, `docs/features/current.md`, `docs/screenshots/` (`applications-list.png`, `new-application-dialog.png`, `base-resume.png`, `detail-step-1.png`, `detail-step-2.png`, `detail-step-3.png`, `insights.png`), `docs/AI_WORKFLOW.md`, `README.md`.
+- Spec: `docs/features/17-readme-workflow-spec.md`. No new screenshot.
 
 ## History
 
