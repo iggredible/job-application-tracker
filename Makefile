@@ -27,8 +27,9 @@ seed:
 
 # Run the prompt eval against the real model. Costs money; needs ANTHROPIC_API_KEY and
 # ANTHROPIC_MODEL in .env. Writes evals/results/. Never runs in CI.
+# `make eval ARGS=--prompts=v2` measures the v2 tailoring prompt; the default is v1, which the app runs.
 eval:
-	cd backend && uv run python -m evals.run
+	cd backend && uv run python -m evals.run $(ARGS)
 
 test:
 	cd backend && uv run pytest

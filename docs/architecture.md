@@ -36,7 +36,7 @@ Request flow: `api/ -> services/ -> repositories/ -> models/`.
 | `repositories/` | All database queries | Make decisions |
 | `models/` | SQLAlchemy table definitions | Contain logic |
 | `ai/` | Anthropic client wrapper, prompt templates, output schemas | Be called except through the `AIClient` interface |
-| `core/` | Config from environment variables, DB session, logging, middleware, the clock (`clock.py`, injected into services so tests control "now") | Know about the domain |
+| `core/` | Config from environment variables (`config.py`), the DB engine and session (`db.py`), JSON logging (`logging.py`), request middleware (`middleware.py`), the clock (`clock.py`, injected into services so tests control "now") | Know about the domain |
 
 ## Deterministic and non-deterministic parts
 
@@ -169,7 +169,8 @@ sequenceDiagram
   - `ai/schemas.py`: the output models the LLM must return (`PostingAnalysisOutput`, `Requirement`, `RequirementCategory`). They carry no limits such as `maxItems`; code enforces those after parsing.
   - `ai/prompts/posting_analysis.py`: prompt `posting_analysis` v1. It wraps the posting in `<posting>` tags, tells the model to treat it as data and neutralises any `</posting>` inside the text.
   - `ai/prompts/tailor_resume.py`: prompt `tailor_resume` v1. Its user text wraps `<base_resume>`, `<posting>`, `<keywords>` and `<examples>`, and the examples block is always there, empty when retrieval (feature 12) finds nothing. `ai/schemas.py` also holds `TailoredResume` and `Experience`.
-  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result, and `tailor()`, which makes one call, with the retrieved examples in the prompt and their resume ids logged, and returns the validated `TailoredResume`.
+  - `ai/prompts/tailor_resume_v2.py`: prompt `tailor_resume` v2 (feature 17). The same inputs and `render()` as v1, with a system text that adds three rules: keep every base-resume term that matches a keyword, use a keyword's exact words only where the base resume has them, and do not work out numbers. **The app does not use it.** Only the eval does (`--prompts v2`), to measure it, and an architecture test fails if anything in `app/` outside the prompt package references it. Making it the app's prompt is a deliberate change to the default in `tailor()`.
+  - `services/generation.py`: `analyze()`, the pure function that makes the call and normalises the result, and `tailor()`, which makes one call, with the retrieved examples in the prompt and their resume ids logged, and returns the validated `TailoredResume`. `tailor()` takes an optional `prompt` module that defaults to v1. The services never pass it, so the app runs `posting_analysis` v1 and `tailor_resume` v1, fixed by these imports; there is no setting that selects a version.
 - The wrapper writes one row per call to a log sink, including failures (API error, refusal, truncated output, validation error). The app's sink writes `ai_calls` and commits in its own transaction, so the row survives a rollback in the caller. The eval passes an in-memory sink.
 - `AIClient` returns the validated output and the `ai_call_id`, so artifacts can store the foreign key.
 - The model name and API key come from environment variables and never reach the frontend.
@@ -284,11 +285,11 @@ Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(fi
 
 ## Prompt eval
 
-`make eval` (`cd backend && uv run python -m evals.run`) runs the real model against fixed fixtures and scores the output with the existing plain-code checks. It is run by hand when a prompt or the model changes, never in CI. It lives in `backend/evals/`, outside `app/`: it imports `app/`, and `app/` never imports it. It never opens a database session; its calls go to an `InMemoryLogSink`.
+`make eval` (`cd backend && uv run python -m evals.run`; `make eval ARGS=--prompts=v2` measures the v2 tailoring prompt) runs the real model against fixed fixtures and scores the output with the existing plain-code checks. It is run by hand when a prompt or the model changes, never in CI. It lives in `backend/evals/`, outside `app/`: it imports `app/`, and `app/` never imports it. It never opens a database session; its calls go to an `InMemoryLogSink`.
 
 | Module | Role |
 | --- | --- |
-| `evals/run.py` | `main()`: builds the client from `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, runs `analyze()` then `tailor()` (no examples, so retrieval is off) for each fixture, prints the table, writes the results file. Exit code 0 all passed, 1 a fixture failed, 2 not configured or a bad fixture |
+| `evals/run.py` | `main()`: builds the client from `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, runs `analyze()` then `tailor()` (no examples, so retrieval is off) for each fixture, prints the table, writes the results file. `--prompts v1\|v2` (`parse_args()`, default v1, the prompt the app runs) picks the tailoring prompt from `TAILOR_PROMPTS`; the analysis prompt stays v1, so a difference between runs comes from tailoring. Exit code 0 all passed, 1 a fixture failed, 2 not configured, a bad fixture or an unknown `--prompts` |
 | `evals/scoring.py` | `score_fixture()`, pure: renders the draft with `render_tailored_markdown()`, runs `check()` and `keyword_coverage()`, and applies the pass rule. `score_error()` is the row for a failed call |
 | `evals/fixtures.py` | `load_fixtures()` reads `fixtures/<name>/` (`posting.txt`, `resume.md`, `expect.json`) and rejects a forbidden skill that the resume already has |
 | `evals/report.py` | `format_table()`, `results_file_name()` and `to_result_json()`: plain formatting |
@@ -309,6 +310,16 @@ Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(fi
 | `/resume` | Base resume editor |
 | `/insights` | Stat tiles, funnel chart and metrics tables |
 
+All of it lives in `frontend/src/`:
+
+| Folder | What is there |
+| --- | --- |
+| `pages/` | One component per route: `ApplicationsPage`, `ApplicationDetailPage`, `ResumePage`, `InsightsPage`. The `*.test.tsx` files beside them are the Vitest tests |
+| `components/` | The pieces the pages share: `Layout` and `NavBar`, `ApplicationDialog`, `ChangeStageMenu`, `StageBadge`, `Timeline`, `WorkflowSteps`, `PostingAnalysisCard` with `CoverageBlock`, `TailoredResumeSection`, `MarkAsAppliedSection`, and `insights/` for the Insights cards |
+| `components/ui/` | shadcn/ui components, as generated |
+| `hooks/` | TanStack Query hooks, one file per resource: `useApplications`, `useAnalysis`, `useCoverage`, `useResume`, `useTailoredResumes`, `useSubmission`, `useMetrics` |
+| `lib/` | Response types and plain formatters per resource (`applications.ts`, `analysis.ts`, `coverage.ts`, `resume.ts`, `tailoredResumes.ts`, `submission.ts`, `metrics.ts`), the fetch wrapper `api.ts`, and `utils.ts` (`cn`) |
+
 - Server state is fetched and cached with TanStack Query. There is no client-side store.
 - The frontend holds NO business rules. Allowed next stages, guard failures and step status all come from the API. So do the options in the Change stage control (Applied is not one of them), which analysis and which tailored resume the page displays, and which resumes can be submitted, each with a reason when it cannot.
 - Creating and editing an application share one dialog. Everything else on the detail page is a section that changes state in place; nothing navigates between steps.
@@ -318,7 +329,8 @@ Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(fi
 
 ## Observability
 
-- Middleware writes one structured JSON log line per request: request ID, method, path, status and latency.
+- Middleware (`core/middleware.py`, logging in `core/logging.py`) writes one structured JSON log line per request: request ID, method, path, status and latency.
+- `GET /health` (`api/health.py`, `services/health.py`, `repositories/health.py`) checks that the database answers and returns 503 when it does not.
 - `timeline_events` and `ai_calls` are the product-level event logs. The Insights page reads them through `GET /metrics/pipeline` and `GET /metrics/ai`.
 
 ## Testing

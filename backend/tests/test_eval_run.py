@@ -77,6 +77,7 @@ class ScriptedClient:
         self.sink = sink
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.tailor_versions: list[str] = []
 
     def generate(self, *, output_model, **kwargs):  # noqa: ANN001, ANN003, ANN201
         self.calls += 1
@@ -84,6 +85,7 @@ class ScriptedClient:
             return FakeAIClient(self.sink, output=ANALYSIS).generate(
                 output_model=output_model, **kwargs
             )
+        self.tailor_versions.append(kwargs["prompt"].version)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, TailoredResume):
             return FakeAIClient(self.sink, output=outcome).generate(
@@ -101,7 +103,10 @@ def make_fixture(root: Path, name: str, *, forbidden: list[str] | None = None) -
 
 
 def run_eval(
-    tmp_path: Path, outcomes: list[TailoredResume | type[AIError]], names: list[str] | None = None
+    tmp_path: Path,
+    outcomes: list[TailoredResume | type[AIError]],
+    names: list[str] | None = None,
+    prompts: str | None = None,
 ) -> tuple[int, ScriptedClient]:
     fixtures_dir = tmp_path / "fixtures"
     for name in names or ["a", "b"]:
@@ -112,11 +117,13 @@ def run_eval(
         holder.append(ScriptedClient(sink, outcomes))
         return holder[0]
 
+    options = {"prompts": prompts} if prompts else {}
     code = run.main(
         make_client=make_client,
         fixtures_dir=fixtures_dir,
         results_dir=tmp_path / "results",
         now=lambda: datetime(2026, 11, 19, 15, 0, tzinfo=UTC),
+        **options,
     )
     return code, holder[0]
 
@@ -308,6 +315,45 @@ def test_all_fixtures_passing_exits_0_and_writes_the_results_file(tmp_path: Path
     data = json.loads(written.read_text())
     assert (data["passed"], data["total"]) == (2, 2)
     assert [f["name"] for f in data["fixtures"]] == ["a", "b"]
+
+
+def test_the_default_run_uses_prompt_v1_for_both_calls(tmp_path: Path) -> None:
+    _, client = run_eval(tmp_path, [tailored(), tailored()])
+
+    assert client.tailor_versions == ["v1", "v1"]
+
+
+def test_prompts_v2_tailors_with_v2_and_keeps_the_analysis_at_v1(tmp_path: Path) -> None:
+    code, client = run_eval(tmp_path, [tailored(), tailored()], prompts="v2")
+
+    assert code == 0
+    assert client.tailor_versions == ["v2", "v2"]
+    written = tmp_path / "results" / "posting_analysis-v1_tailor_resume-v2_fake-model.json"
+    data = json.loads(written.read_text())
+    assert data["prompt_versions"] == {"posting_analysis": "v1", "tailor_resume": "v2"}
+    assert [p.name for p in (tmp_path / "results").glob("*.json")] == [written.name]
+
+
+def test_an_unknown_prompts_value_exits_2_and_calls_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls: list[LogSink] = []
+
+    code = run.main(
+        make_client=lambda sink: calls.append(sink) or ScriptedClient(sink, []),  # type: ignore[func-returns-value]
+        results_dir=tmp_path / "results",
+        prompts="v9",
+    )
+
+    assert code == 2
+    assert "v9" in capsys.readouterr().out
+    assert calls == []
+    assert not (tmp_path / "results").exists()
+
+
+def test_the_command_line_takes_prompts_and_defaults_to_v1() -> None:
+    assert run.parse_args([]).prompts == "v1"
+    assert run.parse_args(["--prompts", "v2"]).prompts == "v2"
 
 
 def test_any_failed_fixture_exits_1(tmp_path: Path) -> None:

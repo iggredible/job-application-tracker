@@ -521,7 +521,18 @@ def test_the_prompt_version_does_not_change_when_retrieval_fills_the_examples() 
     from app.ai.prompts import tailor_resume
 
     assert tailor_resume.VERSION == "v1"
-    assert not (APP_DIR / "ai" / "prompts" / "tailor_resume_v2.py").exists()
+
+
+def test_the_app_runs_prompt_v1_and_only_the_eval_uses_v2() -> None:
+    # tailor_resume v2 (feature 17) exists to be measured. Nothing in app/ outside the prompt
+    # package may use it, so switching the app to v2 stays a deliberate, reviewed change.
+    users = [
+        path.relative_to(APP_DIR).as_posix()
+        for path in APP_DIR.rglob("*.py")
+        if "prompts" not in path.parts and "tailor_resume_v2" in path.read_text()
+    ]
+
+    assert users == []
 
 
 def test_the_example_count_is_never_stored() -> None:

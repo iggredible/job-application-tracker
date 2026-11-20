@@ -1,52 +1,22 @@
-# Current Feature: 17 README and AI Workflow Write-Up
+# Current Feature
 
 ## Status
 
-Planned
+<!-- Not started | Planned | In progress | Completed -->
+
+Not started
 
 ## Goals
 
-- `README.md`:
-  - What the app does and that it is single-user with no authentication
-  - Prerequisites: Python 3.12, uv, Node, PostgreSQL 16
-  - The `make` commands: `setup`, `dev`, `seed`, `test`, `lint`, `eval`
-  - A short architecture summary with the deterministic vs non-deterministic table
-  - A note on how the event log and structured request logs would plug into Prometheus, Grafana or Datadog
-  - What is out of scope
-- `docs/architecture.md` matches the code as built, including real module names
-- `docs/AI_WORKFLOW.md`:
-  - How the spec, plan and build loop worked
-  - What was reviewed line by line and what was verified through tests
-  - What went wrong and what changed as a result
-  - Eval results for prompt `v1` vs `v2`
-  - What would come next
-- `docs/demo.md`: the demo path from `make setup` and `make seed` through analysis, tailoring, guardrail, approval, mark as applied and Insights
-- Verify the demo path on a clean checkout
-- Compare each page with its screenshot and note any intended differences
-- CI is green
+<!-- What the spec requires, as bullets. -->
 
 ## Decisions
 
-- Prompt `v2` is written and measured, but the app keeps running `v1`. The user asked for this ("keep v2, but continue using v1").
-- `v2` covers `tailor_resume` only (changed at the start of the build, after the plan was approved): `ai/prompts/tailor_resume_v2.py` keeps base-resume terms that match a keyword and uses a keyword's exact words only where the base resume has them. Both `v1` eval runs failed `frontend-react` on a coverage drop (59% to 55%, then 57% to 52%), which is what this targets. `posting_analysis` stays at `v1`: tech-only keywords would mostly hide the reported-only concept-keyword flags, and they change the keyword list that coverage is measured over, so `v1` and `v2` coverage could not be compared. Stemming or aliases are the real fix and go under "what would come next". With one prompt changed, a difference between the runs comes from that change.
-- The `v1` module is not edited, because changing a prompt means a new version. The new module (`tailor_resume_v2.py`) reuses v1's `_wrap` helper.
-- No version registry and no setting in `app/`. `tailor()` in `services/generation.py` gets an optional keyword argument `prompt` that defaults to the `v1` module; `analyze()` is not changed. The services do not pass it, so the app stays on `v1`, and the existing `"v1"` assertions in `test_generation.py` stay as they are.
-- `evals/run.py` gets `--prompts v1|v2` (default `v1`, so a bare `make eval` measures what the app runs). `--prompts v2` switches only the tailoring prompt, so the results file is `posting_analysis-v1_tailor_resume-v2_<model>.json`. A small map from the name to the prompt modules lives in `evals/`, outside `app/`. An unknown value exits 2. `make eval ARGS=--prompts=v2` passes it on.
-- Measuring: run `v1` and `v2` three times each (about $0.36 in total) because the model has no temperature setting. Commit the last results file of each; the new `v1` file overwrites the committed one (feature 16: a rerun overwrites, git history keeps the old one). All six totals go into `docs/AI_WORKFLOW.md`, compared per fixture on total flags.
-- If `v2` is not better, report it and leave the app on `v1`. Do not tune `v2` until it passes.
-- The seeded `v2` rows on Insights are fictional (model `seed`); `docs/demo.md` says so.
-- "Clean checkout" means a fresh clone in the job's scratch directory, with throwaway databases (`make setup DEV_DB=... TEST_DB=...` and a matching `.env`), dropped afterwards. The demo's analysis and tailoring steps use real AI calls with the key from the main checkout's `.env`; if no key is available, stop and ask.
-- Docs: `README.md` gets `seed` and `eval`, an architecture summary with the deterministic vs non-deterministic table, the Prometheus, Grafana and Datadog note and the out-of-scope list. `docs/architecture.md` is audited against the code. `docs/AI_WORKFLOW.md` is drafted from the feature log and flagged for the user's review, because it is in their voice. `docs/demo.md` ends with the intended differences from the screenshots.
-- No migration, no new dependency. Only `ai/` and `services/generation.py` change in `app/`, so the layering is untouched.
+<!-- Choices made while planning or building, with the reason. -->
 
 ## Notes
 
-- No new features. `docs/AI_WORKFLOW.md` should already contain notes from each feature; this step edits and completes it.
-- `README.md` already exists (prerequisites and `setup`, `dev`, `test`, `lint` only). `docs/demo.md` does not exist yet.
-- The AI_WORKFLOW requirement for eval results `v1` vs `v2` depends on a `v2` prompt, which feature 16 left out on purpose ("Writing the `v2` prompt is not part of this feature. It follows the first `v1` results."). Only the `v1` results file exists in `backend/evals/results/`. Resolved at planning: write `v2`, keep the app on `v1` (see Decisions).
-- Verifying the demo path and comparing pages with screenshots needs the Playwright MCP against `make dev` (CLAUDE.md, step 4a).
-- References: `docs/project-overview.md`, `docs/architecture.md`, `docs/features/current.md`, `docs/screenshots/` (`applications-list.png`, `new-application-dialog.png`, `base-resume.png`, `detail-step-1.png`, `detail-step-2.png`, `detail-step-3.png`, `insights.png`), `docs/AI_WORKFLOW.md`, `README.md`.
-- Spec: `docs/features/17-readme-workflow-spec.md`. No new screenshot.
+<!-- Constraints, references and anything the next session needs. -->
 
 ## History
 
@@ -68,3 +38,4 @@ Planned
 - 14 Metrics Endpoints (2026-11-19): `GET /metrics/pipeline` and `GET /metrics/ai` return the funnel, time in stage, response rates, stale count and per-prompt-version AI outcomes, edit ratio, flags, tokens, cost and latency, all calculated on request from the logs and read-only.
 - 15 Insights Page (2026-11-19): `/insights` shows stat tiles, a Recharts funnel and tables for time in stage, tailored vs base resume and AI calls by feature, prompt version and model, from the two metrics endpoints, with loading, empty and error states per section and a wide AI table that scrolls inside its card.
 - 16 Prompt Eval (2026-11-19): `make eval` runs the real model on four fixtures through `analyze()` and `tailor()`, scores each draft with the guardrail and keyword coverage (no employer, title, dates or number flags, no forbidden skill, coverage not lower than the base resume) and writes a results file named with the prompt versions and model, with no database session.
+- 17 README and AI Workflow Write-Up (2026-11-19): README, architecture and demo docs, the AI workflow write-up and a measured `tailor_resume` v2 prompt that only the eval uses, with the demo verified on a clean checkout.

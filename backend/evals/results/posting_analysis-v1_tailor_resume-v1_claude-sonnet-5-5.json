@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-11-20T03:11:21.862354+00:00",
+  "ran_at": "2026-11-20T03:30:40.893088+00:00",
   "model": "claude-sonnet-5-5",
   "prompt_versions": {
     "posting_analysis": "v1",
@@ -20,26 +20,42 @@
       },
       "tokens": {
         "input": 2437,
-        "output": 481
+        "output": 482
       },
-      "cost": "0.009684",
+      "cost": "0.009694",
       "error": null
     },
     {
       "name": "backend-python-clean",
       "passed": true,
       "failures": [],
-      "flags": [],
+      "flags": [
+        {
+          "field": "keyword",
+          "value": "automated testing",
+          "message": "Keyword \"automated testing\""
+        },
+        {
+          "field": "keyword",
+          "value": "code review",
+          "message": "Keyword \"code review\""
+        },
+        {
+          "field": "keyword",
+          "value": "data modeling",
+          "message": "Keyword \"data modeling\""
+        }
+      ],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.4090909090909091,
-        "draft": 0.4090909090909091
+        "base": 0.391304347826087,
+        "draft": 0.5217391304347826
       },
       "tokens": {
-        "input": 3005,
-        "output": 943
+        "input": 3009,
+        "output": 937
       },
-      "cost": "0.015440",
+      "cost": "0.015388",
       "error": null
     },
     {
@@ -54,18 +70,18 @@
         },
         {
           "field": "keyword",
-          "value": "data warehouse",
-          "message": "Keyword \"data warehouse\""
+          "value": "data quality",
+          "message": "Keyword \"data quality\""
+        },
+        {
+          "field": "keyword",
+          "value": "monitoring",
+          "message": "Keyword \"monitoring\""
         },
         {
           "field": "keyword",
           "value": "data modeling",
           "message": "Keyword \"data modeling\""
-        },
-        {
-          "field": "keyword",
-          "value": "data quality",
-          "message": "Keyword \"data quality\""
         },
         {
           "field": "keyword",
@@ -79,29 +95,29 @@
         "draft": 0.45454545454545453
       },
       "tokens": {
-        "input": 3006,
-        "output": 860
+        "input": 3004,
+        "output": 846
       },
-      "cost": "0.014612",
+      "cost": "0.014468",
       "error": null
     },
     {
       "name": "frontend-react",
       "passed": false,
       "failures": [
-        "coverage dropped (57% to 52%)"
+        "coverage dropped (59% to 55%)"
       ],
       "flags": [],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.5652173913043478,
-        "draft": 0.5217391304347826
+        "base": 0.5909090909090909,
+        "draft": 0.5454545454545454
       },
       "tokens": {
-        "input": 2996,
-        "output": 996
+        "input": 2990,
+        "output": 988
       },
-      "cost": "0.015952",
+      "cost": "0.015860",
       "error": null
     }
   ]

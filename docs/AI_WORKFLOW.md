@@ -4,11 +4,39 @@ How this app was built from a written specification using Claude Code.
 
 ## Approach
 
-<!-- Spec first, then plan, then build, one feature per session. Which documents drove the work. -->
+<!-- DRAFT by Claude from the feature log and the repo history. Needs the author's review: it is written in the author's voice. -->
+
+I wrote the specification before any code and let it drive the work, one feature per session, in numeric order. Four kinds of document carried it:
+
+- `docs/project-overview.md` says what to build and why: the domain rules, the schema, the AI design and the UI guidelines.
+- `docs/architecture.md` says how it is put together: the layers, which steps are deterministic and which call the model, and the key decisions. It is updated whenever the structure changes, so it describes the code as built.
+- `docs/features/NN-*-spec.md` is one spec per feature, small enough to build and check in a session. `docs/features/current.md` holds the status and the decisions of the feature in progress, so a new session can pick it up.
+- `CLAUDE.md` holds the rules that must never be broken (stage changes only through `change_stage()`, append-only logs, derived values never stored, AI output always a draft) and the workflow itself.
+
+Each feature went through the same loop, as a `/feature` skill with one action per step:
+
+1. **Load.** Claude reads the spec and the files it references, writes the goals into `current.md` and commits that.
+2. **Plan.** Claude proposes the files, the tests named after the requirements, and the assumptions it would make. It writes no code until I approve, and I often changed the plan here (feature 17's `v2` prompt was narrowed to tailoring only at this step). The approved plan and its decisions are committed.
+3. **Start.** A branch, the tests first, a check that they fail for the right reason, then the code, then `make test` and `make lint`. For a frontend feature, a walk through the feature in a real browser with Playwright against the seed data, compared with the screenshot.
+4. **Test, review, complete.** The checks run again. A review, ideally by a subagent that has not seen the build session, ranks findings by severity, and I decide which to fix. Then the work is recorded and committed, and I merge.
+
+Because plans, specs and decisions are committed as they are made, the history shows the process, not only the result.
 
 ## How I verified the work
 
-<!-- What was read line by line, what was trusted to tests, what was checked by hand. -->
+**Read line by line.** I read these five areas of the code, and this is what each one does in my own words:
+
+- **The prompts.** I added a v2 tailoring prompt on top of v1. There was an issue with a posting analysis v2, so only the tailoring prompt has a v2.
+- **The guardrail.** It adds deterministic checks on the model's output.
+- **The stage rules.** They put the transition rules in data, instead of complicated if/else conditions.
+- **The database triggers.** A rule in PostgreSQL stops any update or delete on `timeline_events` and `ai_calls`, so they work as append-only logs.
+- **The eval.** It calls a real LLM on four dummy postings, and it also runs the keyword coverage and the guardrail on the results.
+
+**Trusted to tests.** Behavior that is plain code with a precise rule: stage transitions and guards, keyword coverage, the guardrail, rendering, edit ratio, metrics and the seed plan are pure functions or services with unit and integration tests against a real PostgreSQL test database. The rules that must never be broken have tests of their own: an architecture test that only `change_stage()` and the documented exceptions write `applications.stage`, trigger tests that UPDATE and DELETE fail on the append-only tables, and a test that only the apply code writes `submitted_resume_id`. No test makes a network call; a guard in the test setup blocks it, and a test proves the guard works against the real SDK.
+
+**Distrusted even when green.** Green tests missed real bugs several times: layout in a browser (feature 2), a missing migration in my dev database (features 10, 11 and 13), a number regex that let `$1.5B` through (feature 9) and a table that stretched a phone screen (feature 15). So I distrusted a first run that passed everything, and had Claude break the code on purpose, one rule at a time, to see that a named test failed (features 12 and 17).
+
+**Checked by hand.** Every frontend feature in a real browser against `make dev` and the seed data, with the console open, and compared with its screenshot. The model was checked against the real API with a smoke script (feature 5), and prompt quality with the eval, run by hand (feature 16).
 
 ## Feature log
 
@@ -49,17 +77,62 @@ How this app was built from a written specification using Claude Code.
 
 **Feature 16, prompt eval.** My first real run passed only 1 of 4 fixtures, although the model invented nothing: the spec's rule "coverage must rise" fails honest drafts, because a draft can only gain a keyword that the base resume lacks word for word, and the guardrail flags exactly that. A second run of one fixture passed with the same prompt, so a single run is noisy. I asked what "coverage" and "base" meant and saw that the flagged words (`automated testing`, `data modeling`) were concepts, not tools, so I chose "coverage not lower than base" and had the spec, overview and goals changed to match. Stemming and aliases went into the overview as later work, and a prompt v2 with tech-only keywords is the planned next step, not built.
 
+<!-- DRAFT by Claude from the feature 17 session. Needs the author's review: it is written in the author's voice. -->
+
+**Feature 17, README, workflow write-up and prompt v2.** Before building I asked whether the app ran v1 or v2 and found the version is fixed by two imports, so a v2 prompt would have changed nothing until someone edited one. v2 is now its own module that only the eval can select, with an architecture test that fails if `app/` uses it. When I asked whether the eval was worth it, I narrowed v2 to the tailoring prompt, so each comparison has one change.
+
 ## Prompt iteration
 
-<!-- Eval results for prompt v1 and v2, and what changed between them. -->
+<!-- DRAFT by Claude from the committed results and the six runs of feature 17. Needs the author's review. -->
+
+**What was compared.** `tailor_resume` v1 (what the app runs) against `tailor_resume` v2, on the four fixtures, with the analysis prompt at v1 in both so only tailoring changes. The model was `claude-sonnet-5-5`, which has no temperature setting, so I ran each version three times, interleaved (v1, v2, v1, v2, v1, v2) within about three minutes. The last run of each is committed in `backend/evals/results/`, named `posting_analysis-v1_tailor_resume-v1_...` and `..._tailor_resume-v2_...`. Each run cost about $0.056.
+
+**Why v2.** Both earlier v1 runs (00:13 and 03:11 on 2026-11-20) failed `frontend-react` on "coverage dropped" (59% to 55%, then 57% to 52%), and the trap fixture drew five keyword flags on concepts such as `data modeling` and `data quality`. v2 keeps v1's rules and its inputs and adds three sentences: keep every base-resume term that matches a keyword when rewording, use a keyword's exact words only where the base resume uses them, and do not work out numbers such as years of experience.
+
+**Results.** Each cell lists the three runs in order.
+
+| Fixture | v1 pass | v1 flags | v1 coverage base to draft | v2 pass | v2 flags | v2 coverage base to draft |
+| --- | --- | --- | --- | --- | --- | --- |
+| `already-covered` | 3 of 3 | 2, 0, 0 | 60 to 80, 60 to 60, 60 to 60 | 3 of 3 | 1, 0, 0 | 60 to 70, 60 to 60, 64 to 64 |
+| `backend-python-clean` | 3 of 3 | 0, 0, 3 | 41 to 41, 41 to 41, 39 to 52 | 3 of 3 | 0, 0, 0 | 41 to 41, 41 to 41, 36 to 36 |
+| `data-engineer-trap` | 3 of 3 | 2, 5, 5 | 26 to 35, 23 to 45, 23 to 45 | 3 of 3 | 0, 2, 2 | 20 to 20, 25 to 33, 24 to 33 |
+| `frontend-react` | 0 of 3 | 0, 0, 0 | 59 to 55, 54 to 50, 59 to 55 | 0 of 3 | 0, 0, 0 | 57 to 52, 57 to 52, 56 to 52 |
+| **Total flags per run** | | 4, 5, 8 | | | 1, 2, 2 | |
+
+In all 24 fixture runs there was no employer, title, date or number flag, no skill flag and no forbidden skill in the draft. Every flag in the table is a keyword flag. Both versions pass 3 of 4 fixtures in every run.
+
+**What it shows.**
+
+- **v2 did not fix what it was written for.** `frontend-react` still fails every run, 5 of 5 times under v1 counting the two earlier runs, and 3 of 3 under v2. One extra diagnostic call (not stored) showed the lost keyword is `accessibility`, which the base resume states only in its Summary line, and the draft rewrote the summary without it. v2's rule says a kept term stays "in the skills or in a bullet", so it never mentions the summary. That is a likely cause from one sample, not a proven one.
+- **v2 does produce fewer keyword flags** (1, 2, 2 against 4, 5, 8), but it also gains less coverage (the trap fixture reaches at most 33% where v1 reaches 45%). That is the trade-off the overview already describes: a draft can only gain a keyword the base resume lacks word for word by using that word, and the guardrail flags it. Fewer flags here means closer to the base resume, not more honest: v1 invented nothing either.
+- **A single run is noisy.** The base coverage of one fixture differs between runs (the trap fixture's from 20% to 26%) because the analysis step returns a slightly different keyword list each time, and v1's flags on one fixture went 0, 0, 3. Compare per fixture on flags and pass or fail, and read the coverage figures within a run, not across runs. Four fixtures and three runs can only show a large effect.
+
+**Decision.** The app stays on v1. v2 is kept, written and measured, and `make eval ARGS=--prompts=v2` reruns it. Switching the app to it would be a one-line change to the default in `tailor()` and a new decision after this write-up is reviewed. I did not tune v2 until it passed.
 
 ## Design decisions
 
-<!-- Deterministic vs non-deterministic split, guards, append-only logs, and why. -->
+<!-- DRAFT by Claude from docs/architecture.md (Key decisions). Needs the author's review. -->
+
+The one idea behind most of the design: let the model do only what code cannot, and follow every model step with a check that code can make and a person who decides. `docs/architecture.md` has the full table; the decisions that mattered most:
+
+- **Only two steps call the model** (extract keywords, write a tailored resume), and only when I click. Everything else, including every metric, is plain code that can be unit tested and gives the same answer every time.
+- **The guardrail is code, not a second model call.** The tailored draft is structured data (employer, title, dates, bullets, skills), so code can compare each field with the base resume exactly. Free Markdown could not be checked that reliably. A flag does not block approval and is not auto-fixed: the person decides.
+- **Stage rules are data.** Transitions and guards are tables in code, and `change_stage()` is the only writer of `applications.stage`, so the rules are readable in one place and cannot be bypassed by a stray query. An architecture test checks it.
+- **Logs are append-only, and the database enforces it.** `timeline_events` and `ai_calls` have triggers that reject UPDATE and DELETE, and `resumes.draft_markdown` cannot change after insert. A convention can be broken by one mistaken query; a trigger cannot.
+- **Metrics are calculated, never stored.** A stored counter can drift from the rows it counts; a query cannot. The edit ratio and the outcome of a draft are derived the same way.
+- **The call log goes through a sink.** The same code writes `ai_calls` in the app and an in-memory list in the eval, so the eval never needs a database.
+- **What was sent is frozen.** Applying with the base resume stores a copy, because the base resume stays editable.
 
 ## What I would do next
 
-<!-- Honest gaps and what more time would add. -->
+<!-- DRAFT by Claude from the eval results and the overview's "later improvement" notes. Needs the author's review. -->
+
+In the order I would do them:
+
+1. **Fix the keyword matching before changing prompts again.** The eval's two persistent oddities, keyword flags on honest rewording and a coverage gain that is also a flag, come from literal matching. Stem both sides with one shared normalizer (`monitored` matches `monitoring`), then a small reviewed alias list (`automated testing` with `pytest`). Stemming needs a library, so it needs approval. Earlier results files would no longer be comparable, so each version has to be run again.
+2. **A v3 tailoring prompt that names the summary.** v2's rule covers skills and bullets and `frontend-react` still loses `accessibility` from the summary. Try it only after the matching fix, and judge it on that fixture and on flags.
+3. **A bigger eval.** Four fixtures and three runs cannot show a small effect. More fixtures, five or more runs per version, and a median per fixture. The eval also runs with retrieval off, so it has never measured whether past examples help; it would need to before building embedding or hybrid search.
+4. **Switch the app to a better prompt on evidence** (a one-line default in `tailor()`), and then drop the fictional `v2` rows from the seed data, which today show a `v2` that never ran.
 
 Known limits accepted at the doc review (revisit after the MVP):
 
