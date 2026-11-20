@@ -4,7 +4,7 @@
 
 <!-- Not started | Planned | In progress | Completed -->
 
-Not started
+Planned
 
 ## Goals
 
@@ -28,6 +28,14 @@ Not started
 ## Decisions
 
 <!-- Choices made while planning or building, with the reason. -->
+
+- Change only `_normalize()` in `backend/app/services/guardrail.py`: add `.replace("**", "")` before the whitespace is collapsed. Reason: every phrase match goes through it, so one change covers `check()` and `current_flags()` on both sides, and no space is added.
+- Remove `**` only, not `_`, single `*`, backticks or links. Reason: `_` appears in names such as `snake_case`, and the spec limits the fix to `**`. A `***x***` leaves one `*` on each side, which is accepted.
+- Do not touch `coverage.py`. Reason: it has its own `_normalize`, and it is out of the spec. It may have the same bold-mark problem, which is not checked.
+- Tests go in `backend/tests/test_guardrail.py`, using a small `BOLD_BASE` string next to `BASE`: bold employer, bold skill, a missing title still flagged with a bold base, `current_flags` with a bold keyword in the base, and the existing `Go`/`Google` and `5`/`2025` tests unchanged.
+- Add one test, `test_removing_bold_marks_adds_no_space`, for the "no space added" requirement. It guards against a wrong fix and cannot fail before the fix. The title-not-in-base test is a guard too.
+- Do not add a test for the real Cryoport title line. Reason: it is not in the spec, and the employer and title checks share `add_structural`, so the employer test covers that path.
+- If the seed or the eval flag counts change in `make test`, report it. Do not change them silently.
 
 ## Notes
 
