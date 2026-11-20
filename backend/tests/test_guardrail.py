@@ -452,3 +452,63 @@ def test_the_summary_is_found_under_any_heading_level_and_case() -> None:
     markdown = "# SUMMARY:\nLed 12 people.\n"
 
     assert only(current_flags([], markdown, BASE, []), "number") == ["12"]
+
+
+# --- bold marks (`**`) in the base resume -------------------------------------------------------
+
+# A phrase that sits wholly inside one bold span already matches, because `*` is not a word
+# character. The marks only matter inside a phrase, so each bold span here ends part-way through.
+BOLD_BASE = """# Jordan Avery
+
+## Experience
+### **Coldline** Logistics - Remote
+**Lead** Software Engineer (Jun 2021 – May 2026)
+
+- Led a team of 5 building shipment tracking in Rails
+
+## Skills
+**Ruby** on Rails, PostgreSQL, Sidekiq
+"""
+
+
+def test_a_bold_employer_in_the_base_resume_is_not_flagged() -> None:
+    flags = check(draft(experiences=[job(employer="Coldline Logistics")]), BOLD_BASE, [])
+
+    assert only(flags, "employer") == []
+
+
+def test_a_bold_skill_in_the_base_resume_is_not_flagged() -> None:
+    flags = check(draft(skills=["Ruby on Rails"]), BOLD_BASE, [])
+
+    assert only(flags, "skill") == []
+
+
+def test_a_title_not_in_the_base_resume_is_still_flagged_when_the_base_has_bold_marks() -> None:
+    flags = check(draft(experiences=[job(title="Principal Engineer")]), BOLD_BASE, [])
+
+    assert only(flags, "title") == ["Principal Engineer"]
+
+
+def test_current_flags_ignore_bold_marks_in_the_base_and_still_flag_what_the_base_lacks() -> None:
+    markdown = "## Skills\nRuby on Rails, Kubernetes\n"
+
+    flags = current_flags([], markdown, BOLD_BASE, KEYWORDS)
+
+    assert only(flags, "keyword") == ["kubernetes"]
+
+
+def test_current_flags_keep_a_stored_flag_for_a_value_that_the_bold_base_lacks() -> None:
+    stored = [Flag("skill", "Kubernetes", 'Skill "Kubernetes"')]
+
+    flags = current_flags(stored, "## Skills\nRuby on Rails, Kubernetes\n", BOLD_BASE, [])
+
+    assert pairs(flags) == [("skill", "Kubernetes")]
+
+
+def test_removing_bold_marks_adds_no_space() -> None:
+    # `**Go**ogle` is the word `google`, so the skill `Go` is not in the base resume.
+    base = "## Skills\n**Go**ogle, Rails\n"
+
+    flags = check(draft(skills=["Go"]), base, [])
+
+    assert only(flags, "skill") == ["Go"]

@@ -81,6 +81,10 @@ Because plans, specs and decisions are committed as they are made, the history s
 
 **Feature 17, README, workflow write-up and prompt v2.** Before building I asked whether the app ran v1 or v2 and found the version is fixed by two imports, so a v2 prompt would have changed nothing until someone edited one. v2 is now its own module that only the eval can select, with an architecture test that fails if `app/` uses it. When I asked whether the eval was worth it, I narrowed v2 to the tailoring prompt, so each comparison has one change.
 
+<!-- DRAFT by Claude from the feature 09a session. Needs the author's review: it is written in the author's voice. -->
+
+**Feature 09a, guardrail bold marks (bug fix).** The tailored resume on application 42 warned that a title was not in my base resume, but it was: the base resume bolds each title with `**`, and the guardrail compares exact phrases, so the marks inside the phrase broke the match. I asked Claude what the warning meant, and running the check on the real base text showed the title matched once `**` was removed. The fix is one line in `_normalize()`. Claude's plan was wrong twice: a fully bold phrase already matched (`*` is not a word character), so the tests needed a mark inside the phrase, and `**Go**ogle` matched the skill `Go` before the fix, so the old code also passed a skill it should have flagged. The independent review passed with three minor findings and one nit, which I left unfixed for now. The stored flags on draft 45 do not change, as the spec says.
+
 ## Prompt iteration
 
 <!-- DRAFT by Claude from the committed results and the six runs of feature 17. Needs the author's review. -->
