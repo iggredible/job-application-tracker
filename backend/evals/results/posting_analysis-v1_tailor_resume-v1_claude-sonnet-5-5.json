@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-11-20T00:13:08.299913+00:00",
+  "ran_at": "2026-11-20T03:11:21.862354+00:00",
   "model": "claude-sonnet-5-5",
   "prompt_versions": {
     "posting_analysis": "v1",
@@ -20,32 +20,26 @@
       },
       "tokens": {
         "input": 2437,
-        "output": 476
+        "output": 481
       },
-      "cost": "0.009634",
+      "cost": "0.009684",
       "error": null
     },
     {
       "name": "backend-python-clean",
       "passed": true,
       "failures": [],
-      "flags": [
-        {
-          "field": "keyword",
-          "value": "automated testing",
-          "message": "Keyword \"automated testing\""
-        }
-      ],
+      "flags": [],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.4,
-        "draft": 0.44
+        "base": 0.4090909090909091,
+        "draft": 0.4090909090909091
       },
       "tokens": {
-        "input": 3019,
-        "output": 945
+        "input": 3005,
+        "output": 943
       },
-      "cost": "0.015488",
+      "cost": "0.015440",
       "error": null
     },
     {
@@ -60,13 +54,13 @@
         },
         {
           "field": "keyword",
-          "value": "data modeling",
-          "message": "Keyword \"data modeling\""
+          "value": "data warehouse",
+          "message": "Keyword \"data warehouse\""
         },
         {
           "field": "keyword",
-          "value": "monitoring",
-          "message": "Keyword \"monitoring\""
+          "value": "data modeling",
+          "message": "Keyword \"data modeling\""
         },
         {
           "field": "keyword",
@@ -81,33 +75,33 @@
       ],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.23809523809523808,
-        "draft": 0.47619047619047616
+        "base": 0.22727272727272727,
+        "draft": 0.45454545454545453
       },
       "tokens": {
-        "input": 2998,
-        "output": 872
+        "input": 3006,
+        "output": 860
       },
-      "cost": "0.014716",
+      "cost": "0.014612",
       "error": null
     },
     {
       "name": "frontend-react",
       "passed": false,
       "failures": [
-        "coverage dropped (59% to 55%)"
+        "coverage dropped (57% to 52%)"
       ],
       "flags": [],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.5909090909090909,
-        "draft": 0.5454545454545454
+        "base": 0.5652173913043478,
+        "draft": 0.5217391304347826
       },
       "tokens": {
-        "input": 2990,
-        "output": 992
+        "input": 2996,
+        "output": 996
       },
-      "cost": "0.015900",
+      "cost": "0.015952",
       "error": null
     }
   ]
