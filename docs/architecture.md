@@ -282,6 +282,24 @@ Plain code, no AI. `services/guardrail.py` has two pure functions and a `Flag(fi
 - The same `now` gives identical rows. A real run uses the current time, so the relative layout is the same but the dates move.
 - `--reset` empties every table, including real data, with no confirmation.
 
+## Prompt eval
+
+`make eval` (`cd backend && uv run python -m evals.run`) runs the real model against fixed fixtures and scores the output with the existing plain-code checks. It is run by hand when a prompt or the model changes, never in CI. It lives in `backend/evals/`, outside `app/`: it imports `app/`, and `app/` never imports it. It never opens a database session; its calls go to an `InMemoryLogSink`.
+
+| Module | Role |
+| --- | --- |
+| `evals/run.py` | `main()`: builds the client from `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, runs `analyze()` then `tailor()` (no examples, so retrieval is off) for each fixture, prints the table, writes the results file. Exit code 0 all passed, 1 a fixture failed, 2 not configured or a bad fixture |
+| `evals/scoring.py` | `score_fixture()`, pure: renders the draft with `render_tailored_markdown()`, runs `check()` and `keyword_coverage()`, and applies the pass rule. `score_error()` is the row for a failed call |
+| `evals/fixtures.py` | `load_fixtures()` reads `fixtures/<name>/` (`posting.txt`, `resume.md`, `expect.json`) and rejects a forbidden skill that the resume already has |
+| `evals/report.py` | `format_table()`, `results_file_name()` and `to_result_json()`: plain formatting |
+| `evals/results/` | One JSON file per prompt versions and model, `posting_analysis-<v>_tailor_resume-<v>_<model>.json`, committed |
+
+- A fixture passes when it has no `employer`, `title`, `dates` or `number` flag, none of its forbidden skills appear in the draft, and draft coverage is not lower than the base resume's. Skill and keyword flags are reported and never fail a fixture.
+- Coverage is "not lower", not "higher": a draft can only gain coverage with a keyword the base lacks word for word, which the guardrail flags, so "must rise" would fail honest drafts.
+- Flags come from the structured output, as in the app. Coverage and forbidden skills are measured on the rendered Markdown. Forbidden skills use `keyword_coverage()`, so `Go` does not match `Google`.
+- A failed call fails only that fixture, and the run goes on. The results file keeps flags, coverage and token use, not the drafts.
+- The model has no temperature setting, so two runs of one prompt can differ. Compare versions on the hard flags (employer, title, dates, number, skill), not on one run's coverage.
+
 ## Frontend
 
 | Route | Page |

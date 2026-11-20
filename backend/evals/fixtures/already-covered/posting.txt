@@ -1,0 +1,13 @@
+Junior Python Developer — Maple & Finch
+
+Maple & Finch is a small studio that builds internal web tools for local businesses. We are hiring a junior developer.
+
+You will
+- Write Python code with Flask
+- Query data with SQL
+- Test your work with pytest
+- Use Git for version control
+
+You will need Python, Flask, SQL, pytest and Git. We will teach you the rest.
+
+On site in Madison, WI.

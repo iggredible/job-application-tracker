@@ -1,0 +1,114 @@
+{
+  "ran_at": "2026-11-20T00:13:08.299913+00:00",
+  "model": "claude-sonnet-5-5",
+  "prompt_versions": {
+    "posting_analysis": "v1",
+    "tailor_resume": "v1"
+  },
+  "passed": 3,
+  "total": 4,
+  "fixtures": [
+    {
+      "name": "already-covered",
+      "passed": true,
+      "failures": [],
+      "flags": [],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.6,
+        "draft": 0.6
+      },
+      "tokens": {
+        "input": 2437,
+        "output": 476
+      },
+      "cost": "0.009634",
+      "error": null
+    },
+    {
+      "name": "backend-python-clean",
+      "passed": true,
+      "failures": [],
+      "flags": [
+        {
+          "field": "keyword",
+          "value": "automated testing",
+          "message": "Keyword \"automated testing\""
+        }
+      ],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.4,
+        "draft": 0.44
+      },
+      "tokens": {
+        "input": 3019,
+        "output": 945
+      },
+      "cost": "0.015488",
+      "error": null
+    },
+    {
+      "name": "data-engineer-trap",
+      "passed": true,
+      "failures": [],
+      "flags": [
+        {
+          "field": "keyword",
+          "value": "data pipelines",
+          "message": "Keyword \"data pipelines\""
+        },
+        {
+          "field": "keyword",
+          "value": "data modeling",
+          "message": "Keyword \"data modeling\""
+        },
+        {
+          "field": "keyword",
+          "value": "monitoring",
+          "message": "Keyword \"monitoring\""
+        },
+        {
+          "field": "keyword",
+          "value": "data quality",
+          "message": "Keyword \"data quality\""
+        },
+        {
+          "field": "keyword",
+          "value": "orchestration",
+          "message": "Keyword \"orchestration\""
+        }
+      ],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.23809523809523808,
+        "draft": 0.47619047619047616
+      },
+      "tokens": {
+        "input": 2998,
+        "output": 872
+      },
+      "cost": "0.014716",
+      "error": null
+    },
+    {
+      "name": "frontend-react",
+      "passed": false,
+      "failures": [
+        "coverage dropped (59% to 55%)"
+      ],
+      "flags": [],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.5909090909090909,
+        "draft": 0.5454545454545454
+      },
+      "tokens": {
+        "input": 2990,
+        "output": 992
+      },
+      "cost": "0.015900",
+      "error": null
+    }
+  ]
+}

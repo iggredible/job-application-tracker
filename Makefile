@@ -1,7 +1,7 @@
 DEV_DB := job_tracker
 TEST_DB := job_tracker_test
 
-.PHONY: setup dev test lint seed
+.PHONY: setup dev test lint seed eval
 
 # Create the dev and test databases, run migrations, install dependencies.
 setup:
@@ -24,6 +24,11 @@ dev:
 # Fill an empty dev database with sample data. `make seed ARGS=--reset` wipes it first.
 seed:
 	cd backend && uv run python -m scripts.seed $(ARGS)
+
+# Run the prompt eval against the real model. Costs money; needs ANTHROPIC_API_KEY and
+# ANTHROPIC_MODEL in .env. Writes evals/results/. Never runs in CI.
+eval:
+	cd backend && uv run python -m evals.run
 
 test:
 	cd backend && uv run pytest

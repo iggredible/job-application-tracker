@@ -214,6 +214,13 @@ Matching rule: normalize both sides (lowercase, collapse whitespace, en and em d
 
 > **Note:** A flag is about the draft, not the posting. A keyword the posting wants and the resume lacks is a *missing keyword* in coverage, not a flag.
 
+**Later improvement (not built; out of scope for the MVP).** Matching is literal, in the guardrail's keyword flag and in keyword coverage. The base resume says "monitored" and the keyword is `monitoring`; it says "wrote pytest suites" and the keyword is `automated testing`. A draft that uses the keyword's exact words is then flagged, although the fact is in the base resume, and the same words count as a coverage gain. A coverage gain and a keyword flag are the same event, so an honest rephrase cannot raise coverage without also raising a flag. The first eval run (feature 16) showed this: the model invented nothing, yet keyword flags and coverage moved together, and the pass or fail of a fixture changed between two runs of the same prompt. Two upgrades, in order, both applied to keyword matching only:
+
+1. **Stemming.** Reduce both sides to word stems before matching, with one shared normalizer used by `keyword_coverage()` and the guardrail's keyword check, so `monitored` matches `monitoring` and `APIs` matches `API`. It is deterministic and cheap. It does not cover synonyms. It needs a stemming library, so it needs approval first.
+2. **Synonyms or aliases.** A small, reviewed list of equivalent terms (`automated testing` with `pytest`, `unit tests`), or aliases returned by the analysis step and approved by the user together with the keywords. The check stays plain code, because the aliases are approved data.
+
+Employer, title, dates, numbers and skills stay exact matches. A fuzzy match there could let an invented fact pass, which is what the guardrail exists to stop. Embedding similarity is not suggested for the same reason. After either upgrade, earlier eval results files are no longer comparable with new ones, so run the eval again on the prompt version in use before comparing versions.
+
 ### Retrieval (RAG)
 
 - Build a search query from the approved analysis keywords, joined with OR. Multi-word keywords are quoted so they stay phrases.
@@ -241,7 +248,7 @@ A script (`python -m evals.run`) that calls the real model. It is run by hand wh
 | --- |
 | Zero guardrail flags on employer, title, dates and numbers |
 | None of the fixture's forbidden skills appear in the draft |
-| Keyword coverage of the draft is higher than the base resume's (equal is enough when the base is already at 100%) |
+| Keyword coverage of the draft is not lower than the base resume's (equal is enough) |
 
 Results are written to a file tagged with prompt version and model, and committed.
 
