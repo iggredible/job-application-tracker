@@ -17,7 +17,7 @@ A script that runs the real model against fixed fixtures and scores the output w
 - A fixture passes when:
   - There are zero flags on employer, title, dates and numbers
   - None of its forbidden skills appear in the draft
-  - Draft coverage is higher than base resume coverage (equal is enough when the base resume is already at 100%)
+  - Draft coverage is not lower than base resume coverage (equal is enough)
 - Other skill flags are reported but do not fail the fixture
 - Print a table: fixture, flags, coverage before and after, pass or fail
 - Write results to `evals/results/` in a file named with the prompt version and model

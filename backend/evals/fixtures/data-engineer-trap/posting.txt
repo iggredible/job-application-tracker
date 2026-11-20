@@ -1,0 +1,23 @@
+Data Engineer — Ironbark Logistics
+
+Ironbark Logistics moves freight for 400 retailers. Our data platform team is looking for a data engineer to build the pipelines behind our reporting and forecasting.
+
+What you will do
+- Build and operate batch data pipelines in Python and SQL
+- Orchestrate them with Apache Airflow and model the warehouse with dbt
+- Run workloads on Kubernetes and manage our cloud infrastructure with Terraform
+- Keep pipelines reliable: monitoring, alerting and data quality checks
+- Work with analysts and data scientists on what they need
+
+Requirements (must have)
+- 3+ years as a data or analytics engineer
+- Strong Python and SQL
+- Hands-on Airflow and dbt
+- Production experience with Kubernetes and Terraform
+- Experience with a cloud data warehouse such as Snowflake or BigQuery
+
+Nice to have
+- Apache Spark
+- Streaming tools such as Kafka
+
+Remote in the US.

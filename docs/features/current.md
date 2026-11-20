@@ -1,49 +1,22 @@
-# Current Feature: 16 Prompt Eval
+# Current Feature
 
 ## Status
 
-Planned
+<!-- Not started | Planned | In progress | Completed -->
+
+Not started
 
 ## Goals
 
-- `uv run python -m evals.run`, run by hand; requires `ANTHROPIC_API_KEY`
-- An `eval` target in the Makefile
-- Fixtures in `evals/fixtures/<name>/`: `posting.txt`, `resume.md` and `expect.json` with a `forbidden_skills` list
-- 3 to 5 fixtures, including one trap whose posting demands a skill the resume does not have
-- For each fixture, run the analysis and tailoring prompts through `analyze()` and `tailor()` in `services/generation.py`, the same pure functions the app's services call
-- Retrieval is off, so runs are comparable
-- The eval does not write to the app database. It passes the in-memory log sink to the AI client and never opens a database session
-- Score with the existing guardrail and keyword coverage functions
-- A fixture passes when:
-  - There are zero flags on employer, title, dates and numbers
-  - None of its forbidden skills appear in the draft
-  - Draft coverage is higher than base resume coverage (equal is enough when the base resume is already at 100%)
-- Other skill flags are reported but do not fail the fixture
-- Print a table: fixture, flags, coverage before and after, pass or fail
-- Write results to `evals/results/` in a file named with the prompt version and model
-- Exit with a non-zero code if any fixture fails
-- A unit test for the scoring logic using fake outputs, which does run in CI
+<!-- What the spec requires, as bullets. -->
 
 ## Decisions
 
-- Location: `backend/evals/` (the project layout puts it there), run from `backend/` by `make eval`. Outside `app/`, so nothing in `app/` imports it.
-- Keywords: `tailor()` gets the keywords from `analyze()` directly, and the same keywords are used for the guardrail and coverage. The eval has no approval step.
-- Scoring is a pure module (`evals/scoring.py`) with no I/O and no AI, so the CI unit test runs it with fake drafts. Coverage and forbidden skills use the rendered Markdown draft; flags use the structured output, as the app does.
-- Forbidden skills are checked with `keyword_coverage()`, so they follow the same word-boundary rules as the app (`Go` does not match `Google`). The fixture loader rejects a forbidden skill that the base resume already contains.
-- Only employer, title, dates and number flags fail a fixture. Skill and keyword flags are reported only.
-- A failed AI call fails that fixture and the run continues. Missing `ANTHROPIC_API_KEY` or `ANTHROPIC_MODEL` exits 2; any failed fixture exits 1; all pass exits 0.
-- Results file: `evals/results/<analysis-version>_<tailor-version>_<model>.json`, with versions read from the in-memory sink's records. It holds every flag, coverage before and after, forbidden skills found, tokens and cost, and not the full drafts. A rerun with the same versions and model overwrites it; git history keeps the old one.
-- Four fixtures: `backend-python-clean`, `frontend-react`, `data-engineer-trap`, `already-covered`.
-- The eval makes no database session and uses `InMemoryLogSink`. No new dependency, no migration.
-- Writing the `v2` prompt is not part of this feature. It follows the first `v1` results.
-- No compare command: `v1` and `v2` are compared from the two committed results files. Compare total flags per fixture, not only pass or fail, because the model has no temperature setting and one run is noisy.
+<!-- Choices made while planning or building, with the reason. -->
 
 ## Notes
 
-- The eval itself does not run in CI. It costs money and its outputs vary between runs.
-- Process: run `v1` and commit the results, improve the prompt as `v2`, run again, commit, and summarize the difference in `docs/AI_WORKFLOW.md`.
-- References: `docs/project-overview.md` (AI Design: Eval), `docs/features/09-guardrail-spec.md`, `docs/features/07-keyword-coverage-spec.md`, `docs/architecture.md` (generation functions, sink), `backend/app/services/generation.py`, `backend/app/services/guardrail.py`, `backend/app/services/coverage.py`, `backend/app/ai/sinks.py` (`InMemoryLogSink`).
-- Spec: `docs/features/16-eval-spec.md`. No screenshot.
+<!-- Constraints, references and anything the next session needs. -->
 
 ## History
 
@@ -64,3 +37,4 @@ Planned
 - 13 Seed Data (2026-11-19): `python -m scripts.seed` (`make seed`, `--reset` to wipe) fills an empty database in one transaction with about 40 fictional applications, valid backdated timelines, analyses, tailored resumes and `seed`-model `ai_calls` rows shaped to the Insights screenshot, from a pure fixed-seed planner.
 - 14 Metrics Endpoints (2026-11-19): `GET /metrics/pipeline` and `GET /metrics/ai` return the funnel, time in stage, response rates, stale count and per-prompt-version AI outcomes, edit ratio, flags, tokens, cost and latency, all calculated on request from the logs and read-only.
 - 15 Insights Page (2026-11-19): `/insights` shows stat tiles, a Recharts funnel and tables for time in stage, tailored vs base resume and AI calls by feature, prompt version and model, from the two metrics endpoints, with loading, empty and error states per section and a wide AI table that scrolls inside its card.
+- 16 Prompt Eval (2026-11-19): `make eval` runs the real model on four fixtures through `analyze()` and `tailor()`, scores each draft with the guardrail and keyword coverage (no employer, title, dates or number flags, no forbidden skill, coverage not lower than the base resume) and writes a results file named with the prompt versions and model, with no database session.

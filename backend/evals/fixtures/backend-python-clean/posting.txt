@@ -1,0 +1,19 @@
+Backend Engineer (Python) — Brightwater Payments
+
+Brightwater Payments helps small shops take online orders. We are a team of 30 and we are hiring a backend engineer to own parts of our order and billing services.
+
+What you will do
+- Design, build and run REST APIs in Python (FastAPI or Flask) used by our web and mobile apps
+- Model data and write fast queries in PostgreSQL
+- Move slow work into background jobs and queues
+- Write automated tests and review teammates' code
+- Package and ship services with Docker and our CI/CD pipeline
+
+What we are looking for
+- 3+ years building backend services in Python
+- Strong PostgreSQL and SQL skills
+- Experience with REST API design and testing (pytest)
+- Familiarity with Docker and CI/CD
+- Nice to have: AWS, Redis, monitoring and alerting
+
+We value clear writing, small pull requests and teammates who help each other. Remote within US time zones.

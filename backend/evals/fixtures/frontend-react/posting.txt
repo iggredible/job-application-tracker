@@ -1,0 +1,24 @@
+Frontend Engineer — Larkspur Health
+
+Larkspur Health builds scheduling software for small clinics. You will join the web team and help us rebuild the patient booking flow.
+
+Responsibilities
+- Build accessible, responsive interfaces with React and TypeScript
+- Own components end to end: design review, implementation, tests and release
+- Fetch and cache server data with React Query
+- Style with Tailwind CSS and keep our component library consistent
+- Write unit tests with Jest and React Testing Library, and end-to-end tests with Cypress
+- Work with designers and backend engineers to shape APIs
+
+Requirements
+- 4+ years of frontend experience
+- Strong React, TypeScript, HTML and CSS
+- Experience with web accessibility (WCAG)
+- Comfortable with Git and code review
+
+Nice to have
+- GraphQL
+- Next.js
+- Experience in healthcare or other regulated products
+
+Hybrid, 2 days a week in our Chicago office.
