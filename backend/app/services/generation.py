@@ -7,7 +7,7 @@ these directly with an in-memory log sink.
 
 from collections.abc import Sequence
 
-from app.ai.prompts import posting_analysis, tailor_resume
+from app.ai.prompts import PromptModule, posting_analysis, tailor_resume
 from app.ai.schemas import PostingAnalysisOutput, Requirement, TailoredResume
 from app.ai.types import AIClient, AIResult
 from app.models import AIFeature
@@ -42,6 +42,7 @@ def tailor(
     keywords: list[str],
     application_id: int | None,
     examples: Sequence[RetrievedExample] = (),
+    prompt: PromptModule = tailor_resume,
 ) -> AIResult[TailoredResume]:
     """Write a tailored resume from the base resume, the posting and the approved keywords.
 
@@ -50,12 +51,15 @@ def tailor(
     raises the client's `AIError`.
 
     `examples` are past approved resumes that show style and emphasis only. They fill the
-    prompt's examples section, which is part of prompt v1, so the version does not change, and
+    prompt's examples section, which is part of the prompt, so the version does not change, and
     their resume ids are logged on the call. With none, the section stays empty.
+
+    `prompt` is the tailoring prompt module. It defaults to v1, which is what the app runs: the
+    services do not pass it. Only the eval passes another one (v2), to measure it.
     """
     return client.generate(
         feature=AIFeature.TAILOR_RESUME,
-        prompt=tailor_resume.render(
+        prompt=prompt.render(
             base_resume, posting_text, keywords, examples=format_examples(examples)
         ),
         output_model=TailoredResume,

@@ -1,0 +1,93 @@
+{
+  "ran_at": "2026-11-20T03:31:08.981115+00:00",
+  "model": "claude-sonnet-5-5",
+  "prompt_versions": {
+    "posting_analysis": "v1",
+    "tailor_resume": "v2"
+  },
+  "passed": 3,
+  "total": 4,
+  "fixtures": [
+    {
+      "name": "already-covered",
+      "passed": true,
+      "failures": [],
+      "flags": [],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.6363636363636364,
+        "draft": 0.6363636363636364
+      },
+      "tokens": {
+        "input": 2592,
+        "output": 502
+      },
+      "cost": "0.010204",
+      "error": null
+    },
+    {
+      "name": "backend-python-clean",
+      "passed": true,
+      "failures": [],
+      "flags": [],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.36,
+        "draft": 0.36
+      },
+      "tokens": {
+        "input": 3170,
+        "output": 948
+      },
+      "cost": "0.015820",
+      "error": null
+    },
+    {
+      "name": "data-engineer-trap",
+      "passed": true,
+      "failures": [],
+      "flags": [
+        {
+          "field": "keyword",
+          "value": "data pipelines",
+          "message": "Keyword \"data pipelines\""
+        },
+        {
+          "field": "keyword",
+          "value": "data quality",
+          "message": "Keyword \"data quality\""
+        }
+      ],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.23809523809523808,
+        "draft": 0.3333333333333333
+      },
+      "tokens": {
+        "input": 3146,
+        "output": 829
+      },
+      "cost": "0.014582",
+      "error": null
+    },
+    {
+      "name": "frontend-react",
+      "passed": false,
+      "failures": [
+        "coverage dropped (56% to 52%)"
+      ],
+      "flags": [],
+      "forbidden_found": [],
+      "coverage": {
+        "base": 0.56,
+        "draft": 0.52
+      },
+      "tokens": {
+        "input": 3155,
+        "output": 1027
+      },
+      "cost": "0.016580",
+      "error": null
+    }
+  ]
+}

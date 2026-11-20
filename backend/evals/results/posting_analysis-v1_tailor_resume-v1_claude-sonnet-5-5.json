@@ -1,5 +1,5 @@
 {
-  "ran_at": "2026-11-20T00:13:08.299913+00:00",
+  "ran_at": "2026-11-20T03:30:40.893088+00:00",
   "model": "claude-sonnet-5-5",
   "prompt_versions": {
     "posting_analysis": "v1",
@@ -20,9 +20,9 @@
       },
       "tokens": {
         "input": 2437,
-        "output": 476
+        "output": 482
       },
-      "cost": "0.009634",
+      "cost": "0.009694",
       "error": null
     },
     {
@@ -34,18 +34,28 @@
           "field": "keyword",
           "value": "automated testing",
           "message": "Keyword \"automated testing\""
+        },
+        {
+          "field": "keyword",
+          "value": "code review",
+          "message": "Keyword \"code review\""
+        },
+        {
+          "field": "keyword",
+          "value": "data modeling",
+          "message": "Keyword \"data modeling\""
         }
       ],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.4,
-        "draft": 0.44
+        "base": 0.391304347826087,
+        "draft": 0.5217391304347826
       },
       "tokens": {
-        "input": 3019,
-        "output": 945
+        "input": 3009,
+        "output": 937
       },
-      "cost": "0.015488",
+      "cost": "0.015388",
       "error": null
     },
     {
@@ -60,8 +70,8 @@
         },
         {
           "field": "keyword",
-          "value": "data modeling",
-          "message": "Keyword \"data modeling\""
+          "value": "data quality",
+          "message": "Keyword \"data quality\""
         },
         {
           "field": "keyword",
@@ -70,8 +80,8 @@
         },
         {
           "field": "keyword",
-          "value": "data quality",
-          "message": "Keyword \"data quality\""
+          "value": "data modeling",
+          "message": "Keyword \"data modeling\""
         },
         {
           "field": "keyword",
@@ -81,14 +91,14 @@
       ],
       "forbidden_found": [],
       "coverage": {
-        "base": 0.23809523809523808,
-        "draft": 0.47619047619047616
+        "base": 0.22727272727272727,
+        "draft": 0.45454545454545453
       },
       "tokens": {
-        "input": 2998,
-        "output": 872
+        "input": 3004,
+        "output": 846
       },
-      "cost": "0.014716",
+      "cost": "0.014468",
       "error": null
     },
     {
@@ -105,9 +115,9 @@
       },
       "tokens": {
         "input": 2990,
-        "output": 992
+        "output": 988
       },
-      "cost": "0.015900",
+      "cost": "0.015860",
       "error": null
     }
   ]

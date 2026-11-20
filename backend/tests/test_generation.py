@@ -5,6 +5,7 @@ It touches no database: the tests give it an in-memory log sink.
 
 import pytest
 
+from app.ai.prompts import tailor_resume_v2
 from app.ai.schemas import (
     Experience,
     PostingAnalysisOutput,
@@ -210,6 +211,51 @@ def test_tailor_puts_the_examples_in_the_prompt_and_logs_their_resume_ids() -> N
     assert content.index("<examples>") > content.index("</base_resume>")
     assert record.retrieved_example_ids == [4, 9]
     assert record.prompt_version == "v1"  # filling the section is not a new prompt version
+
+
+def test_tailor_uses_prompt_v1_unless_it_is_given_another() -> None:
+    sink = InMemoryLogSink()
+
+    tailor(
+        FakeAIClient(sink, output=TAILORED),
+        base_resume="x",
+        posting_text="y",
+        keywords=[],
+        application_id=7,
+    )
+
+    assert sink.records[0].prompt_version == "v1"
+    assert "keep every" not in sink.records[0].request_json["system"].lower()
+
+
+def test_tailor_sends_the_prompt_it_is_given_and_logs_its_version() -> None:
+    sink = InMemoryLogSink()
+
+    tailor(
+        FakeAIClient(sink, output=TAILORED),
+        base_resume="# Base",
+        posting_text="y",
+        keywords=["ruby on rails"],
+        application_id=7,
+        prompt=tailor_resume_v2,
+    )
+
+    record = sink.records[0]
+    assert record.prompt_version == "v2"
+    assert "keep every" in record.request_json["system"].lower()
+    assert "<base_resume>\n# Base\n</base_resume>" in record.request_json["messages"][0]["content"]
+
+
+def test_analyze_still_logs_prompt_v1() -> None:
+    sink = InMemoryLogSink()
+
+    analyze(
+        FakeAIClient(sink, output=PostingAnalysisOutput(requirements=[], keywords=[])),
+        posting_text="y",
+        application_id=None,
+    )
+
+    assert sink.records[0].prompt_version == "v1"
 
 
 def test_tailor_lets_a_failed_call_raise_after_it_is_logged() -> None:
