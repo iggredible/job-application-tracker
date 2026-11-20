@@ -5,8 +5,8 @@ stored as generated. `current_flags()` recalculates what the user sees from the 
 now, so editing the draft updates the flags.
 
 Matching rule: normalize both sides (lowercase, collapse whitespace, en and em dashes become
-hyphens), then match whole tokens or phrases on word boundaries. Never raw substrings: `Go` does
-not match `Google`, and `5` does not match `2025`.
+hyphens, `**` bold marks removed), then match whole tokens or phrases on word boundaries. Never
+raw substrings: `Go` does not match `Google`, and `5` does not match `2025`.
 """
 
 import re
@@ -59,8 +59,12 @@ _BULLET = re.compile(r"^\s*[-*+]\s+")
 
 
 def _normalize(text: str) -> str:
-    """Lowercase, en and em dashes as hyphens, every run of whitespace as one space."""
-    return " ".join(text.casefold().replace("–", "-").replace("—", "-").split())
+    """Lowercase, en and em dashes as hyphens, `**` removed, every run of whitespace as one space.
+
+    `**` is removed with no space in its place: `**Lead** Software` becomes `lead software`, and
+    `**Go**ogle` becomes `google`. No other Markdown mark is removed.
+    """
+    return " ".join(text.casefold().replace("–", "-").replace("—", "-").replace("**", "").split())
 
 
 def _found(normalized_text: str, value: str) -> bool:
