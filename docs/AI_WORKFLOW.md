@@ -4,25 +4,42 @@ How this app was built from a written specification using Claude Code.
 
 ## Approach
 
-<!-- DRAFT by Claude from the feature log and the repo history. Needs the author's review: it is written in the author's voice. -->
+I've been adjusting the workflow as I went, but this is the flow I'm starting to use more.
 
-I wrote the specification before any code and let it drive the work, one feature per session, in numeric order. Four kinds of document carried it:
+### Planning
 
-- `docs/project-overview.md` says what to build and why: the domain rules, the schema, the AI design and the UI guidelines.
-- `docs/architecture.md` says how it is put together: the layers, which steps are deterministic and which call the model, and the key decisions. It is updated whenever the structure changes, so it describes the code as built.
-- `docs/features/NN-*-spec.md` is one spec per feature, small enough to build and check in a session. `docs/features/current.md` holds the status and the decisions of the feature in progress, so a new session can pick it up.
-- `CLAUDE.md` holds the rules that must never be broken (stage changes only through `change_stage()`, append-only logs, derived values never stored, AI output always a draft) and the workflow itself.
+I started by brainstorming with Claude: feasibility, relevance and tradeoffs (that is how I chose the job application tracker). Then I worked with Claude to write:
 
-Each feature went through the same loop, as a `/feature` skill with one action per step:
+- `project-overview.md`: a technical PRD with the required libraries and versions. Claude must ask before installing anything not listed.
+- `architecture.md`: the system design.
+- One spec per feature (`01-scaffold-spec.md`, `02-applications-spec.md`, ...).
 
-1. **Load.** Claude reads the spec and the files it references, writes the goals into `current.md` and commits that.
-2. **Plan.** Claude proposes the files, the tests named after the requirements, and the assumptions it would make. It writes no code until I approve, and I often changed the plan here (feature 17's `v2` prompt was narrowed to tailoring only at this step). The approved plan and its decisions are committed.
-3. **Start.** A branch, the tests first, a check that they fail for the right reason, then the code, then `make test` and `make lint`. For a frontend feature, a walk through the feature in a real browser with Playwright against the seed data, compared with the screenshot.
-4. **Test, review, complete.** The checks run again. A review, ideally by a subagent that has not seen the build session, ranks findings by severity, and I decide which to fix. Then the work is recorded and committed, and I merge.
+They all live in `docs/` and are linked from `CLAUDE.md`. Custom skills and sub-agents live in `.claude/`.
 
-Because plans, specs and decisions are committed as they are made, the history shows the process, not only the result.
+### Building each feature
 
-## How I verified the work
+I created a skill named `feature`, and it has a few actions:
+
+- `/feature load N`: loads the spec for feature N.
+- `/feature plan`: Claude and I agree on the approach (and discuss the tests). Needs my approval.
+- `/feature start`: Claude implements it.
+- `/feature test`: unit tests, lint, and Playwright (for UI changes).
+- `/feature review`: a review in a fresh session or as a subagent, to avoid bias. It returns a list of issues grouped by severity (major / minor / nits). Fixes need my approval.
+- `/feature explain`: summarizes the changes.
+- `/feature complete`: records what happened, commits and pushes the branch. I merge.
+
+### Knowing when to trust Claude
+
+The hardest part is figuring out when to trust Claude and when not to. Code is cheap in agentic coding: Claude generates a lot in a short time, and I can't read all of it. Even skimming it all would take too long.
+
+Right now I try to read selectively:
+
+- the main flow of the app
+- the database schema and how the tables connect
+- where the important logic lives
+- anything critical, like payments or auth (my app has neither)
+
+## Verifying
 
 **Read line by line.** I read these five areas of the code, and this is what each one does in my own words:
 
@@ -38,7 +55,7 @@ Because plans, specs and decisions are committed as they are made, the history s
 
 **Checked by hand.** Every frontend feature in a real browser against `make dev` and the seed data, with the console open, and compared with its screenshot. The model was checked against the real API with a smoke script (feature 5), and prompt quality with the eval, run by hand (feature 16).
 
-## Feature log
+## Feature Implementation Logs
 
 <!-- Two or three lines per feature, written as each one is finished:
      what the agent got wrong, how it was caught, what was changed as a result. -->
@@ -111,7 +128,7 @@ In all 24 fixture runs there was no employer, title, date or number flag, no ski
 
 **Decision.** The app stays on v1. v2 is kept, written and measured, and `make eval ARGS=--prompts=v2` reruns it. Switching the app to it would be a one-line change to the default in `tailor()` and a new decision after this write-up is reviewed. I did not tune v2 until it passed.
 
-## Design decisions
+## Design decisions (thoughts about the app)
 
 <!-- DRAFT by Claude from docs/architecture.md (Key decisions). Needs the author's review. -->
 
@@ -125,7 +142,10 @@ The one idea behind most of the design: let the model do only what code cannot, 
 - **The call log goes through a sink.** The same code writes `ai_calls` in the app and an in-memory list in the eval, so the eval never needs a database.
 - **What was sent is frozen.** Applying with the base resume stores a copy, because the base resume stays editable.
 
-## What I would do next
+## What didn't go well + what I learned
+
+
+## What's next / Future Improvements
 
 <!-- DRAFT by Claude from the eval results and the overview's "later improvement" notes. Needs the author's review. -->
 
@@ -145,3 +165,4 @@ Known limits accepted at the doc review (revisit after the MVP):
 - Keyword coverage matches exact terms only, so `k8s` and `kubernetes` count as different keywords.
 - A call with `max_tokens` above about 21,333 makes the Anthropic SDK raise a plain `ValueError` before anything is sent, so no `ai_calls` row is written and no `AIError` is raised. The default is 8192 and a one-page resume is far below it. Revisit in feature 8 if tailoring needs a higher limit (reasoning tokens count against `max_tokens`).
 - The raw model text is not stored: a successful row logs the validated output, and a validation failure keeps only Pydantic's short excerpt in `ai_calls.error`. Revisit in feature 6, when real prompts produce real failures.
+
