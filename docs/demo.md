@@ -86,4 +86,4 @@ The pages were compared one by one with `docs/screenshots/`. Where they differ, 
 | Insights | Model and Superseded columns, dark bars, labels beside the bars, a longer note under the resume comparison | Recorded in feature 15 |
 | Base resume | None in layout | |
 
-None of the pages logged a console error or warning during the walk.
+(None of the pages logged a console error or warning during the walk)

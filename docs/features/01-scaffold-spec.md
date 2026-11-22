@@ -65,4 +65,4 @@ Set up the repo skeleton so the backend, frontend, and database run locally with
    - The migration contains no `create_table`.
    - `app/services/` has no `fastapi` imports and `app/api/` has no SQL.
 6. **CI.** Validate the workflow YAML and run its commands locally. Ask before pushing a branch to run it on GitHub.
-7. **Docs.** `docs/features/current.md` is updated and the `docs/AI_WORKFLOW.md` entry is drafted for review.
+7. **Docs.** `docs/features/current.md` is updated.

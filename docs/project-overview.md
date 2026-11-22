@@ -714,7 +714,6 @@ Wait for approval of each plan before writing code.
    For frontend features, also verify the feature in a real browser with the Playwright MCP: walk the user flow, compare with the named screenshot and check the console for errors.
 3. New endpoints appear correctly in `/docs` (OpenAPI).
 4. `docs/features/current.md` updated with status and decisions.
-5. A few lines added to `docs/AI_WORKFLOW.md`: what went wrong, what changed.
 
 ---
 
